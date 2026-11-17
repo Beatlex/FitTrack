@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime, timezone
 
@@ -15,12 +16,25 @@ from .schemas import MeasurementCreate, MeasurementUpdate
 Base.metadata.create_all(bind=engine)
 password_hasher = PasswordHash.recommended()
 
+is_production = os.getenv("APP_ENV", "development").lower() == "production"
+session_secret = os.getenv("SESSION_SECRET")
+if not session_secret:
+    if is_production:
+        raise RuntimeError("SESSION_SECRET muss im Produktionsbetrieb gesetzt sein.")
+    session_secret = "fittrack-local-development-secret-change-before-deployment"
+    logging.warning("FitTrack nutzt einen lokalen Entwicklungsschlüssel. Vor einem produktiven Betrieb SESSION_SECRET setzen.")
+if len(session_secret) < 32:
+    raise RuntimeError("SESSION_SECRET muss mindestens 32 Zeichen lang sein.")
+cookie_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+if is_production and not cookie_secure:
+    raise RuntimeError("COOKIE_SECURE=true ist im Produktionsbetrieb erforderlich.")
+
 app = FastAPI(title="FitTrack API", version="0.2.0")
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.getenv("SESSION_SECRET", "dev-only-change-this-secret"),
+    secret_key=session_secret,
     same_site="lax",
-    https_only=os.getenv("COOKIE_SECURE", "false").lower() == "true",
+    https_only=cookie_secure,
 )
 app.add_middleware(
     CORSMiddleware,
