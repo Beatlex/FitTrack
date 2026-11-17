@@ -39,7 +39,7 @@ cd frontend
 npm install
 npm run dev
 ```
-Öffne http://localhost:5173. Die API-Dokumentation findest du unter http://127.0.0.1:8000/docs.
+Öffne http://localhost:5173. Die API-Dokumentation findest du unter http://127.0.0.1:8000/docs. Der Vite-Entwicklungsserver bindet standardmäßig nur an localhost. Für einen vorübergehenden Test in einem vertrauenswürdigen Heimnetz kannst du ihn mit `npm run dev -- --host 0.0.0.0` freigeben; wegen bekannter Schwachstellen in einem transitiven Entwicklungswerkzeug (picomatch) nicht in öffentlichen oder nicht vertrauenswürdigen Netzen verwenden.
 
 Beim ersten Start können maximal zwei Konten angelegt werden. Die SQLite-Datei wird lokal unter `data/fittrack.db` erzeugt und ist absichtlich von Git ausgeschlossen.
 
