@@ -1,13 +1,247 @@
-import {useEffect,useState} from "react";
-import {Activity,Apple,ChartNoAxesCombined,CircleUserRound,Dumbbell,LogOut,Plus,Scale,Utensils} from "lucide-react";
-type User={id:number;username:string};type Dash={username:string;today:{calories:number;protein_g:number;carbs_g:number;fat_g:number};latest_measurement:{weight_kg?:number}|null};
-async function api(path:string,options:RequestInit={}){const r=await fetch(path,{credentials:"include",headers:{"Content-Type":"application/json",...options.headers},...options});if(!r.ok){const d=await r.json().catch(()=>({}));throw Error(d.detail||"Anfrage fehlgeschlagen");}return r.status===204?null:r.json();}
-export default function App(){const[user,setUser]=useState<User|null>(null),[dash,setDash]=useState<Dash|null>(null),[mode,setMode]=useState("login"),[username,setUsername]=useState(""),[password,setPassword]=useState(""),[error,setError]=useState(""),[section,setSection]=useState("Übersicht"),[weight,setWeight]=useState(""),[food,setFood]=useState(""),[kcal,setKcal]=useState(""),[protein,setProtein]=useState("");
-const refresh=async()=>setDash(await api("/api/dashboard"));useEffect(()=>{api("/api/auth/me").then(setUser).catch(()=>{});},[]);useEffect(()=>{if(user)refresh().catch(e=>setError(e.message));},[user]);
-async function auth(e:React.FormEvent){e.preventDefault();try{const u=await api(mode==="login"?"/api/auth/login":"/api/auth/register",{method:"POST",body:JSON.stringify({username,password})});if(mode==="login")setUser(u);else{setMode("login");setError("Konto erstellt. Bitte anmelden.");}}catch(e){setError((e as Error).message);}}
-async function measure(e:React.FormEvent){e.preventDefault();try{await api("/api/measurements",{method:"POST",body:JSON.stringify({weight_kg:Number(weight)})});setWeight("");await refresh();setError("");}catch(e){setError((e as Error).message);}}
-async function meal(e:React.FormEvent){e.preventDefault();try{await api("/api/food",{method:"POST",body:JSON.stringify({food_name:food,calories:Number(kcal),protein_g:Number(protein)})});setFood("");setKcal("");setProtein("");await refresh();setError("");}catch(e){setError((e as Error).message);}}
-if(!user)return <main className="auth"><div className="brand"><i><Activity/></i>FIT<span>TRACK</span></div><form className="authbox" onSubmit={auth}><small>DEIN PERSÖNLICHES TRACKING</small><h1>{mode==="login"?"Willkommen zurück":"Konto erstellen"}</h1><p>Fitness und Ernährung im Blick behalten.</p><label>Benutzername<input value={username} onChange={e=>setUsername(e.target.value)} minLength={3} required/></label><label>Passwort<input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={10} required/></label><button className="primary">{mode==="login"?"Anmelden":"Konto erstellen"}</button>{error&&<p className="error">{error}</p>}<button type="button" className="link" onClick={()=>{setMode(mode==="login"?"register":"login");setError("");}}>{mode==="login"?"Erstes Konto einrichten":"Zur Anmeldung"}</button></form></main>;
-const nav=[["Übersicht",ChartNoAxesCombined],["Körperwerte",Scale],["Ernährung",Apple],["Statistiken",Activity]];
-return <div className="app"><aside><div className="brand"><i><Activity/></i>FIT<span>TRACK</span></div><small className="menu-label">MENÜ</small><nav>{nav.map(([n,I]:any)=><button className={section===n?"selected":""} onClick={()=>setSection(n)}><I size={18}/>{n}</button>)}</nav><div className="profile"><CircleUserRound/><b>{user.username}</b><button onClick={async()=>{await api("/api/auth/logout",{method:"POST"});setUser(null);}}><LogOut size={17}/></button></div></aside><main className="content"><header><div><small>DEIN FITNESS-BEREICH</small><h1>{section}</h1></div><span className="today">● HEUTE</span></header>{error&&<p className="error">{error}</p>}{section==="Übersicht"?<><section className="welcome"><div><small>SCHÖN, DASS DU DA BIST</small><h2>Bleib dran, {user.username}.</h2><p>Kleine Schritte. Sichtbare Fortschritte.</p></div><Dumbbell size={48}/></section><h3>Dein heutiger Überblick</h3><div className="metrics"><Metric icon={Utensils} label="Kalorien" value={dash?.today.calories??0} unit="kcal"/><Metric icon={Activity} label="Protein" value={dash?.today.protein_g??0} unit="g"/><Metric icon={Apple} label="Kohlenhydrate" value={dash?.today.carbs_g??0} unit="g"/><Metric icon={Scale} label="Fett" value={dash?.today.fat_g??0} unit="g"/></div><h3>Schnelle Einträge</h3><div className="forms"><form className="panel" onSubmit={measure}><h3><Scale/> Körpergewicht</h3><p>Letzter Messwert: <b>{dash?.latest_measurement?.weight_kg??"–"} kg</b></p><input type="number" step="0.1" min="1" max="500" placeholder="Gewicht in kg" value={weight} onChange={e=>setWeight(e.target.value)} required/><button className="primary"><Plus/> Speichern</button></form><form className="panel" onSubmit={meal}><h3><Apple/> Ernährung erfassen</h3><input placeholder="Lebensmittel" value={food} onChange={e=>setFood(e.target.value)} required/><div className="twocol"><input type="number" min="0" placeholder="kcal" value={kcal} onChange={e=>setKcal(e.target.value)} required/><input type="number" min="0" placeholder="Protein (g)" value={protein} onChange={e=>setProtein(e.target.value)}/></div><button className="primary">Eintrag speichern <Plus/></button></form></div></>:<section className="panel empty"><Activity size={40}/><h2>{section}</h2><p>Dieser Bereich wird im nächsten Entwicklungsschritt ergänzt. Deine Daten sind bereits pro Benutzer getrennt.</p></section>}<footer>FITTRACK · PRIVATE FITNESS TRACKING</footer></main></div>}
-function Metric({icon:Icon,label,value,unit}:any){return <article className="metric"><div className="metric-icon"><Icon/></div><p>{label}</p><strong>{Math.round(value)}<small>{unit}</small></strong><div className="bar"><span/></div></article>}
+import { useEffect, useState, type FormEvent } from "react";
+import {
+  Activity,
+  Apple,
+  ChartNoAxesCombined,
+  CircleUserRound,
+  Dumbbell,
+  LogOut,
+  Plus,
+  Scale,
+  Utensils,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { api } from "./services/api";
+import BodyMeasurements from "./pages/BodyMeasurements";
+
+type User = { id: number; username: string };
+type DashboardData = {
+  username: string;
+  today: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
+  latest_measurement: { weight_kg: number | null } | null;
+};
+type NavigationItem = { name: string; icon: LucideIcon };
+
+const navigation: NavigationItem[] = [
+  { name: "Übersicht", icon: ChartNoAxesCombined },
+  { name: "Körperwerte", icon: Scale },
+  { name: "Ernährung", icon: Apple },
+  { name: "Statistiken", icon: Activity },
+];
+
+export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [section, setSection] = useState("Übersicht");
+  const [weight, setWeight] = useState("");
+  const [foodName, setFoodName] = useState("");
+  const [calories, setCalories] = useState("");
+  const [protein, setProtein] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  async function refreshDashboard() {
+    const data = await api<DashboardData>("/api/dashboard");
+    setDashboard(data);
+  }
+
+  useEffect(() => {
+    api<User>("/api/auth/me")
+      .then(setUser)
+      .catch(() => setUser(null));
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      refreshDashboard().catch((err: Error) => setError(err.message));
+    }
+  }, [user]);
+
+  async function submitAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+    try {
+      if (authMode === "register") {
+        await api<User>("/api/auth/register", {
+          method: "POST",
+          body: JSON.stringify({ username, password }),
+        });
+        setAuthMode("login");
+        setNotice("Konto wurde angelegt. Du kannst dich jetzt anmelden.");
+        setPassword("");
+        return;
+      }
+      const authenticatedUser = await api<User>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username, password }),
+      });
+      setUser(authenticatedUser);
+      setPassword("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Anmeldung fehlgeschlagen.");
+    }
+  }
+
+  async function addWeight(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+    try {
+      await api("/api/measurements", {
+        method: "POST",
+        body: JSON.stringify({ weight_kg: Number(weight) }),
+      });
+      setWeight("");
+      await refreshDashboard();
+      setNotice("Gewicht wurde gespeichert.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gewicht konnte nicht gespeichert werden.");
+    }
+  }
+
+  async function addFood(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+    try {
+      await api("/api/food", {
+        method: "POST",
+        body: JSON.stringify({
+          food_name: foodName,
+          calories: Number(calories),
+          protein_g: Number(protein || 0),
+        }),
+      });
+      setFoodName("");
+      setCalories("");
+      setProtein("");
+      await refreshDashboard();
+      setNotice("Lebensmittel wurde gespeichert.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Eintrag konnte nicht gespeichert werden.");
+    }
+  }
+
+  async function logout() {
+    try {
+      await api("/api/auth/logout", { method: "POST" });
+      setUser(null);
+      setDashboard(null);
+      setSection("Übersicht");
+      setError("");
+      setNotice("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Abmeldung fehlgeschlagen.");
+    }
+  }
+
+  if (!user) {
+    return (
+      <main className="auth">
+        <div className="brand"><i><Activity /></i>FIT<span>TRACK</span></div>
+        <form className="authbox" onSubmit={submitAuth}>
+          <small>DEIN PERSÖNLICHES TRACKING</small>
+          <h1>{authMode === "login" ? "Willkommen zurück" : "Konto erstellen"}</h1>
+          <p>Fitness und Ernährung im Blick behalten.</p>
+          <label>Benutzername
+            <input value={username} onChange={(event) => setUsername(event.target.value)} minLength={3} maxLength={40} autoComplete="username" required />
+          </label>
+          <label>Passwort
+            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={10} autoComplete={authMode === "login" ? "current-password" : "new-password"} required />
+          </label>
+          <button className="primary" type="submit">{authMode === "login" ? "Anmelden" : "Konto erstellen"}</button>
+          {error && <p className="error" role="alert">{error}</p>}
+          {notice && <p className="success-message" role="status">{notice}</p>}
+          <button type="button" className="link" onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setError(""); setNotice(""); }}>
+            {authMode === "login" ? "Erstes Konto einrichten" : "Zur Anmeldung"}
+          </button>
+        </form>
+      </main>
+    );
+  }
+
+  return (
+    <div className="app">
+      <aside>
+        <div className="brand"><i><Activity /></i>FIT<span>TRACK</span></div>
+        <small className="menu-label">MENÜ</small>
+        <nav aria-label="Hauptnavigation">
+          {navigation.map(({ name, icon: Icon }) => (
+            <button key={name} className={section === name ? "selected" : ""} onClick={() => { setSection(name); setError(""); setNotice(""); }}>
+              <Icon size={18} />{name}
+            </button>
+          ))}
+        </nav>
+        <div className="profile">
+          <CircleUserRound />
+          <b>{user.username}</b>
+          <button aria-label="Abmelden" title="Abmelden" onClick={() => void logout()}><LogOut size={17} /></button>
+        </div>
+      </aside>
+
+      <main className="content">
+        <header>
+          <div><small>DEIN FITNESS-BEREICH</small><h1>{section}</h1></div>
+          <span className="today">● HEUTE</span>
+        </header>
+        {error && <p className="error" role="alert">{error}</p>}
+        {notice && <p className="success-message" role="status">{notice}</p>}
+
+        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Übersicht" ? (
+          <>
+            <section className="welcome">
+              <div><small>SCHÖN, DASS DU DA BIST</small><h2>Bleib dran, {user.username}.</h2><p>Kleine Schritte. Sichtbare Fortschritte.</p></div>
+              <Dumbbell size={48} />
+            </section>
+            <h3>Dein heutiger Überblick</h3>
+            <div className="metrics">
+              <Metric icon={Utensils} label="Kalorien" value={dashboard?.today.calories ?? 0} unit="kcal" />
+              <Metric icon={Activity} label="Protein" value={dashboard?.today.protein_g ?? 0} unit="g" />
+              <Metric icon={Apple} label="Kohlenhydrate" value={dashboard?.today.carbs_g ?? 0} unit="g" />
+              <Metric icon={Scale} label="Fett" value={dashboard?.today.fat_g ?? 0} unit="g" />
+            </div>
+            <h3>Schnelle Einträge</h3>
+            <div className="forms">
+              <form className="panel" onSubmit={addWeight}>
+                <h3><Scale /> Körpergewicht</h3>
+                <p>Letzter Messwert: <b>{dashboard?.latest_measurement?.weight_kg ?? "–"} kg</b></p>
+                <input type="number" step="0.1" min="1" max="500" placeholder="Gewicht in kg" value={weight} onChange={(event) => setWeight(event.target.value)} required />
+                <button className="primary" type="submit"><Plus /> Speichern</button>
+              </form>
+              <form className="panel" onSubmit={addFood}>
+                <h3><Apple /> Ernährung erfassen</h3>
+                <input placeholder="Lebensmittel" maxLength={160} value={foodName} onChange={(event) => setFoodName(event.target.value)} required />
+                <div className="twocol">
+                  <input type="number" min="0" placeholder="kcal" value={calories} onChange={(event) => setCalories(event.target.value)} required />
+                  <input type="number" min="0" placeholder="Protein (g)" value={protein} onChange={(event) => setProtein(event.target.value)} />
+                </div>
+                <button className="primary" type="submit">Eintrag speichern <Plus /></button>
+              </form>
+            </div>
+          </>
+        ) : (
+          <section className="panel empty">
+            <Activity size={40} /><h2>{section}</h2>
+            <p>Dieser Bereich wird im nächsten Entwicklungsschritt ergänzt. Deine Daten bleiben privat und pro Benutzer getrennt.</p>
+          </section>
+        )}
+        <footer>FITTRACK · PRIVATE FITNESS TRACKING</footer>
+      </main>
+    </div>
+  );
+}
+
+function Metric({ icon: Icon, label, value, unit }: { icon: LucideIcon; label: string; value: number; unit: string }) {
+  return (
+    <article className="metric">
+      <div className="metric-icon"><Icon /></div>
+      <p>{label}</p>
+      <strong>{Math.round(value)}<small>{unit}</small></strong>
+      <div className="bar"><span /></div>
+    </article>
+  );
+}
