@@ -42,6 +42,9 @@ jobs:
       - name: Export generated lockfile for repository pinning
         working-directory: frontend
         run: base64 -w0 package-lock.json
+      - name: Inspect patched picomatch releases
+        working-directory: frontend
+        run: npm view picomatch version && npm view picomatch versions --json
       - name: Report installed frontend dependencies
         working-directory: frontend
         run: npm ls --depth=0
