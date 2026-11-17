@@ -54,10 +54,15 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
 
 
 def measurement_to_dict(entry: Measurement) -> dict:
+    measured_at = entry.measured_at
+    if measured_at.tzinfo is None:
+        measured_at = measured_at.replace(tzinfo=timezone.utc)
+    else:
+        measured_at = measured_at.astimezone(timezone.utc)
     fields = ("weight_kg", "waist_cm", "chest_cm", "hip_cm", "arm_cm", "thigh_cm")
     return {
         "id": entry.id,
-        "measured_at": entry.measured_at.isoformat(),
+        "measured_at": measured_at.isoformat(),
         **{field: getattr(entry, field) for field in fields},
     }
 
