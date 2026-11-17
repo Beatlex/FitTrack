@@ -76,9 +76,10 @@ export default function BodyMeasurements() {
     return entries.filter((entry) => new Date(entry.measured_at).getTime() >= cutoff);
   }, [entries, period]);
 
-  const latest = entries[0];
-  const previousWeight = entries.find((entry) => entry.weight_kg != null && entry.id !== latest?.id)?.weight_kg ?? null;
-  const weightChange = latest?.weight_kg != null && previousWeight != null ? latest.weight_kg - previousWeight : null;
+  const weightEntries = entries.filter((entry) => entry.weight_kg != null);
+  const latestWeight = weightEntries[0] ?? null;
+  const previousWeight = weightEntries[1]?.weight_kg ?? null;
+  const weightChange = latestWeight?.weight_kg != null && previousWeight != null ? latestWeight.weight_kg - previousWeight : null;
   const weightPoints = [...filteredEntries]
     .filter((entry) => entry.weight_kg != null)
     .sort((a, b) => new Date(a.measured_at).getTime() - new Date(b.measured_at).getTime());
@@ -145,8 +146,8 @@ export default function BodyMeasurements() {
         <article className="summary-card">
           <div className="summary-icon"><Scale size={19} /></div>
           <span>Letztes Gewicht</span>
-          <strong>{latest?.weight_kg != null ? latest.weight_kg.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : "–"}<small> kg</small></strong>
-          <em>{latest ? formatDate(latest.measured_at) : "Noch keine Messung"}</em>
+          <strong>{latestWeight?.weight_kg != null ? latestWeight.weight_kg.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : "–"}<small> kg</small></strong>
+          <em>{latestWeight ? formatDate(latestWeight.measured_at) : "Noch keine Messung"}</em>
         </article>
         <article className="summary-card">
           <div className="summary-icon"><Ruler size={19} /></div>
