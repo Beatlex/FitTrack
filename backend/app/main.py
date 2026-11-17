@@ -247,7 +247,7 @@ def dashboard(db: Session = Depends(get_db), user: User = Depends(current_user))
     ).all()
     latest = db.scalar(
         select(Measurement)
-        .where(Measurement.user_id == user.id)
+        .where(Measurement.user_id == user.id, Measurement.weight_kg.is_not(None))
         .order_by(Measurement.measured_at.desc(), Measurement.id.desc())
     )
     macro_fields = ("calories", "protein_g", "carbs_g", "fat_g")
