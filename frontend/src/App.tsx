@@ -13,6 +13,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { api } from "./services/api";
 import BodyMeasurements from "./pages/BodyMeasurements";
+import Nutrition from "./pages/Nutrition";
 
 type User = { id: number; username: string };
 type DashboardData = {
@@ -191,7 +192,7 @@ export default function App() {
         {error && <p className="error" role="alert">{error}</p>}
         {notice && <p className="success-message" role="status">{notice}</p>}
 
-        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Übersicht" ? (
+        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Ernährung" ? <Nutrition /> : section === "Übersicht" ? (
           <>
             <section className="welcome">
               <div><small>SCHÖN, DASS DU DA BIST</small><h2>Bleib dran, {user.username}.</h2><p>Kleine Schritte. Sichtbare Fortschritte.</p></div>
