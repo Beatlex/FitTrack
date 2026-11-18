@@ -11,6 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .database import Base, engine, get_db
 from .models import FoodEntry, Measurement, User
+from . import nutrition_models  # Register nutrition tables before create_all
 from .schemas import MeasurementCreate, MeasurementUpdate
 
 Base.metadata.create_all(bind=engine)
@@ -256,3 +257,7 @@ def dashboard(db: Session = Depends(get_db), user: User = Depends(current_user))
         "today": {field: sum(getattr(entry, field) for entry in entries) for field in macro_fields},
         "latest_measurement": measurement_to_dict(latest) if latest else None,
     }
+
+
+from .routers.nutrition import router as nutrition_router
+app.include_router(nutrition_router)
