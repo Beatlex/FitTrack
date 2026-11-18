@@ -6,7 +6,7 @@ from ..database import get_db
 from ..models import User
 from ..nutrition_models import Food, MealEntry, NutritionGoal
 from ..nutrition_schemas import FoodCreate, GoalUpdate, MealCreate
-from ..main import current_user
+from ..dependencies import current_user
 
 router = APIRouter(prefix="/api/nutrition", tags=["nutrition"])
 MACROS = ("calories", "protein_g", "carbs_g", "fat_g")
