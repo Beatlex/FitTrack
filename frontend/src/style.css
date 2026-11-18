@@ -76,3 +76,37 @@
 .dashboard-nutrition{margin-bottom:34px}
 @media(max-width:950px){.nutrition-totals{grid-template-columns:repeat(2,minmax(0,1fr))}.nutrition-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.nutrition-meal-form{grid-template-columns:1fr}.nutrition-entry{align-items:flex-start;flex-wrap:wrap}.nutrition-entry span{width:calc(100% - 42px)}}
+
+/* Clear calorie availability meter and reusable recipe ingredient rows */
+.calorie-progress-card{gap:10px;justify-content:space-between;min-height:176px}
+.calorie-card-heading,.calorie-track-labels,.recipe-ingredients-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%}
+.calorie-card-heading>span{font-size:13px;color:#c9d0df;font-weight:650}
+.calorie-card-heading>small,.calorie-track-labels{font-size:10px;color:#929bad}
+.calorie-numbers{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;width:100%}
+.calorie-numbers>div{display:grid;gap:3px}
+.calorie-numbers strong{font-size:26px;line-height:1.15;letter-spacing:-.5px;color:#fff;font-variant-numeric:tabular-nums}
+.calorie-numbers small{font-size:10px;color:#aab3c4}
+.calorie-free{text-align:right}
+.calorie-free strong{color:#bdaaff}
+.calorie-track{height:15px;background:#354052;border:1px solid #46516a;border-radius:20px;overflow:hidden;width:100%;box-shadow:inset 0 1px 3px #080b12}
+.calorie-track span{display:block;height:100%;background:linear-gradient(90deg,#8b70ee,#b29aff);border-radius:20px;transition:width .25s ease}
+.calorie-track-labels{font-size:9px}
+.calorie-available,.calorie-over{font-size:11px;margin:0!important;color:#bdaaff!important;font-weight:650}
+.calorie-over{color:#ffb38c!important}
+.nutrition-recipe-form{display:grid;gap:14px}
+.nutrition-recipe-form>label,.recipe-ingredient-row label{display:grid;gap:7px;color:#c3c9d5;font-size:12px}
+.nutrition-recipe-form input,.nutrition-recipe-form select{width:100%;min-width:0;padding:11px 12px;background:#111620;border:1px solid #343c4d;color:#fff;border-radius:9px}
+.recipe-ingredients{display:grid;gap:10px;padding:14px;background:#151a24;border:1px solid #303747;border-radius:11px}
+.recipe-ingredients-heading b{font-size:12px;color:#e5e7ef}
+.recipe-ingredients-heading span{font-size:10px;color:#929bad}
+.recipe-ingredient-row{display:grid;grid-template-columns:minmax(0,2fr) minmax(110px,1fr) 36px;align-items:end;gap:10px}
+.recipe-ingredient-row select,.recipe-ingredient-row input{margin:0}
+.ingredient-remove,.add-ingredient{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #3a4355;background:#222938;color:#c5ccda;border-radius:8px;padding:10px}
+.ingredient-remove{height:39px;color:#c5a6a6}
+.add-ingredient{justify-self:start;color:#c5b7ff;font-size:11px}
+.ingredient-remove:disabled,.add-ingredient:disabled{opacity:.45;cursor:not-allowed}
+.nutrition-ingredient-list{margin:5px 0 0;padding-left:17px;color:#8792a6;font-size:10px;line-height:1.7}
+.nutrition-entry{align-items:flex-start}
+.nutrition-entry>span{white-space:normal;text-align:right;max-width:48%}
+.nutrition-entry button:disabled{opacity:.4;cursor:not-allowed}
+@media(max-width:700px){.recipe-ingredient-row{grid-template-columns:1fr 105px 34px}.calorie-progress-card{min-height:unset}.nutrition-entry>span{max-width:none;text-align:left}}
