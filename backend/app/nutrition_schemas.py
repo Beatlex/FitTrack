@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 class Nutrients(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -24,9 +24,34 @@ class FoodCreate(Nutrients):
 class GoalUpdate(Nutrients):
     pass
 
+class MealIngredientInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    food_id: int = Field(gt=0)
+    amount_g: float = Field(gt=0, le=10000)
+
 class MealCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    food_id: int
-    amount_g: float = Field(gt=0, le=10000)
+    meal_name: str = Field(default="Mahlzeit", min_length=1, max_length=160)
     meal_type: str = Field(pattern="^(breakfast|lunch|dinner|snack)$")
     consumed_at: datetime | None = None
+    ingredients: list[MealIngredientInput] = Field(default_factory=list, max_length=30)
+    food_id: int | None = Field(default=None, gt=0)
+    amount_g: float | None = Field(default=None, gt=0, le=10000)
+
+    @field_validator("meal_name")
+    @classmethod
+    def clean_meal_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Mahlzeitenname darf nicht leer sein.")
+        return value
+
+    @model_validator(mode="after")
+    def require_ingredients(self):
+        has_ingredients = bool(self.ingredients)
+        has_legacy_food = self.food_id is not None and self.amount_g is not None
+        if has_ingredients == has_legacy_food:
+            raise ValueError("Bitte Zutaten angeben oder genau ein Lebensmittel auswählen.")
+        if (self.food_id is None) != (self.amount_g is None):
+            raise ValueError("Lebensmittel und Menge müssen gemeinsam angegeben werden.")
+        return self
