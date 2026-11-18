@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class Nutrients(BaseModel):
@@ -28,4 +29,4 @@ class MealCreate(BaseModel):
     food_id: int
     amount_g: float = Field(gt=0, le=10000)
     meal_type: str = Field(pattern="^(breakfast|lunch|dinner|snack)$")
-    consumed_at: str | None = None
+    consumed_at: datetime | None = None
