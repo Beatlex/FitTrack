@@ -201,7 +201,7 @@ export default function App() {
         {error && <p className="error" role="alert">{error}</p>}
         {notice && <p className="success-message" role="status">{notice}</p>}
 
-        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Ernährung" ? <Nutrition /> : section === "Übersicht" ? (
+        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Ernährung" ? <Nutrition onDataChanged={refreshDashboard} /> : section === "Übersicht" ? (
           <>
             <section className="welcome">
               <div><small>SCHÖN, DASS DU DA BIST</small><h2>Bleib dran, {user.username}.</h2><p>Kleine Schritte. Sichtbare Fortschritte.</p></div>
@@ -214,6 +214,14 @@ export default function App() {
                 const consumed = nutritionToday?.consumed[key] ?? dashboard?.today[key] ?? 0;
                 const remaining = nutritionToday?.remaining?.[key] ?? null;
                 const progress = goal && goal > 0 ? Math.min(100, consumed / goal * 100) : 0;
+                if (key === "calories") return <article className="summary-card calorie-progress-card" key={key}>
+                  <div className="calorie-card-heading"><span>Kalorien</span><small>{goal == null ? "Tagesziel fehlt" : "Tagesfortschritt"}</small></div>
+                  <div className="calorie-numbers"><div><strong>{Math.round(consumed * 10) / 10}</strong><small>kcal aufgenommen</small></div>
+                    <div className="calorie-free">{remaining == null ? "Ziel festlegen" : remaining >= 0 ? <><strong>{Math.round(remaining * 10) / 10}</strong><small>kcal noch frei</small></> : <><strong>{Math.round(-remaining * 10) / 10}</strong><small>kcal über Ziel</small></>}</div></div>
+                  <div className="calorie-track" role="progressbar" aria-label="Kalorienverbrauch des Tages" aria-valuemin={0} aria-valuemax={goal ?? 0} aria-valuenow={Math.min(consumed, goal ?? consumed)}><span style={{width: progress + "%"}}/></div>
+                  <div className="calorie-track-labels"><span>0 kcal</span><span>Ziel: {goal == null ? "–" : goal + " kcal"}</span></div>
+                  {remaining != null && <p className={remaining < 0 ? "calorie-over" : "calorie-available"}>{remaining < 0 ? "Tagesziel überschritten" : "Noch " + Math.round(remaining * 10) / 10 + " kcal verfügbar"}</p>}
+                </article>;
                 return <article className="summary-card" key={key}><span>{label}</span><strong>{Math.round(consumed * 10) / 10} <small>{unit}</small></strong><div className="nutrition-track"><span style={{width: progress + "%"}}/></div><p>Tagesziel: {goal == null ? "nicht festgelegt" : goal + " " + unit}</p><em>{remaining == null ? "Ziel festlegen" : remaining >= 0 ? "Noch " + Math.round(remaining * 10) / 10 + " " + unit : Math.round(-remaining * 10) / 10 + " " + unit + " über Ziel"}</em></article>;
               })}
             </div>
