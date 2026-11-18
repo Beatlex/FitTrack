@@ -47,8 +47,14 @@ export default function App() {
   const [notice, setNotice] = useState("");
 
   async function refreshDashboard() {
-    const data = await api<DashboardData>("/api/dashboard");
+    const day = new Date();
+    const localDate = new Date(day.getTime() - day.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const [data, nutrition] = await Promise.all([
+      api<DashboardData>("/api/dashboard"),
+      api<NutritionOverview>(`/api/nutrition/day?day=${localDate}`),
+    ]);
     setDashboard(data);
+    setNutritionToday(nutrition);
   }
 
   useEffect(() => {
