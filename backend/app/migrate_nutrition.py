@@ -27,6 +27,11 @@ def upgrade() -> None:
           calories FLOAT NOT NULL, protein_g FLOAT NOT NULL, carbs_g FLOAT NOT NULL, fat_g FLOAT NOT NULL)""",
         "CREATE INDEX IF NOT EXISTS ix_meal_entries_user_id ON meal_entries(user_id)",
         "CREATE INDEX IF NOT EXISTS ix_meal_entries_consumed_at ON meal_entries(consumed_at)",
+        """CREATE TABLE IF NOT EXISTS meal_ingredients (
+          id INTEGER PRIMARY KEY, meal_entry_id INTEGER NOT NULL REFERENCES meal_entries(id) ON DELETE CASCADE,
+          food_id INTEGER NULL REFERENCES foods(id), food_name VARCHAR(160) NOT NULL, amount_g FLOAT NOT NULL,
+          calories FLOAT NOT NULL, protein_g FLOAT NOT NULL, carbs_g FLOAT NOT NULL, fat_g FLOAT NOT NULL)""",
+        "CREATE INDEX IF NOT EXISTS ix_meal_ingredients_meal_entry_id ON meal_ingredients(meal_entry_id)",
     )
     with engine.begin() as connection:
         for statement in statements:
