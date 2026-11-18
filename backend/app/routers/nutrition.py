@@ -87,10 +87,10 @@ def get_day(day: date = Query(default_factory=date.today), db: Session = Depends
 
 @router.post("/meals", status_code=201)
 def add_meal(data: MealCreate, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    requested = data.ingredients or []
+    requested = [(item.food_id, item.amount_g) for item in data.ingredients]
     if data.food_id is not None and data.amount_g is not None:
-        requested = [{"food_id": data.food_id, "amount_g": data.amount_g}]
-    food_ids = {item.food_id for item in requested}
+        requested = [(data.food_id, data.amount_g)]
+    food_ids = {food_id for food_id, _ in requested}
     foods = db.scalars(visible_foods_statement(user.id).where(Food.id.in_(food_ids))).all()
     food_by_id = {food.id: food for food in foods}
     if len(food_by_id) != len(food_ids):
@@ -98,14 +98,14 @@ def add_meal(data: MealCreate, db: Session = Depends(get_db), user: User = Depen
     resolved = []
     totals = {key: 0.0 for key in MACROS}
     total_amount = 0.0
-    for item in requested:
-        food = food_by_id[item.food_id]
-        factor = item.amount_g / food.basis_g
+    for food_id, amount_g in requested:
+        food = food_by_id[food_id]
+        factor = amount_g / food.basis_g
         nutrients = {key: round(getattr(food, key) * factor, 2) for key in MACROS}
-        total_amount += item.amount_g
+        total_amount += amount_g
         for key, value in nutrients.items():
             totals[key] += value
-        resolved.append({"food_id": food.id, "food_name": food.name, "amount_g": item.amount_g, **nutrients})
+        resolved.append({"food_id": food.id, "food_name": food.name, "amount_g": amount_g, **nutrients})
     consumed_at = data.consumed_at or datetime.now(timezone.utc)
     if consumed_at.tzinfo is None:
         consumed_at = consumed_at.replace(tzinfo=timezone.utc)
