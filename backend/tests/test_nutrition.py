@@ -74,3 +74,60 @@ def test_invalid_nutrients_and_meal_type_are_rejected(client: TestClient) -> Non
     assert client.post("/api/nutrition/foods", json={
         "name": "   ", "calories": 1, "protein_g": 1, "carbs_g": 1, "fat_g": 1,
     }).status_code == 422
+
+
+def test_recipe_with_multiple_ingredients_sums_nutrients_and_deletes_cleanly(client: TestClient) -> None:
+    login(client, "recipe-owner")
+    oats = client.post("/api/nutrition/foods", json={
+        "name": "Haferflocken", "basis_g": 100, "calories": 370,
+        "protein_g": 13, "carbs_g": 59, "fat_g": 7,
+    }).json()
+    milk = client.post("/api/nutrition/foods", json={
+        "name": "Milch", "basis_g": 100, "calories": 64,
+        "protein_g": 3.4, "carbs_g": 4.8, "fat_g": 3.5,
+    }).json()
+    meal = client.post("/api/nutrition/meals", json={
+        "meal_name": "Overnight Oats",
+        "meal_type": "breakfast",
+        "ingredients": [
+            {"food_id": oats["id"], "amount_g": 50},
+            {"food_id": milk["id"], "amount_g": 150},
+        ],
+    })
+    assert meal.status_code == 201
+    payload = meal.json()
+    assert payload["food_name"] == "Overnight Oats"
+    assert payload["amount_g"] == 200
+    assert payload["calories"] == 281
+    assert len(payload["ingredients"]) == 2
+    assert payload["ingredients"][0]["food_name"] == "Haferflocken"
+    day = client.get("/api/nutrition/day").json()
+    assert day["consumed"]["calories"] == 281
+    assert len(day["entries"]) == 1
+
+    deleted = client.delete(f"/api/nutrition/meals/{payload['id']}")
+    assert deleted.status_code == 204
+    after_delete = client.get("/api/nutrition/day").json()
+    assert after_delete["consumed"]["calories"] == 0
+    assert after_delete["entries"] == []
+
+
+def test_recipe_rejects_foreign_ingredient_and_too_many_ingredients(client: TestClient) -> None:
+    login(client, "recipe-first")
+    private_food = client.post("/api/nutrition/foods", json={
+        "name": "Private Ingredient", "calories": 100, "protein_g": 1, "carbs_g": 1, "fat_g": 1,
+    }).json()
+    client.post("/api/auth/logout")
+    login(client, "recipe-second")
+    response = client.post("/api/nutrition/meals", json={
+        "meal_name": "Unauthorized recipe",
+        "meal_type": "breakfast",
+        "ingredients": [{"food_id": private_food["id"], "amount_g": 100}],
+    })
+    assert response.status_code == 404
+
+    too_many = [{"food_id": 999, "amount_g": 1} for _ in range(31)]
+    invalid = client.post("/api/nutrition/meals", json={
+        "meal_name": "Too many ingredients", "meal_type": "breakfast", "ingredients": too_many,
+    })
+    assert invalid.status_code == 422
