@@ -21,6 +21,7 @@ type DashboardData = {
   today: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
   latest_measurement: { weight_kg: number | null } | null;
 };
+type NutritionOverview = { goals: { calories: number; protein_g: number; carbs_g: number; fat_g: number } | null; consumed: { calories: number; protein_g: number; carbs_g: number; fat_g: number }; remaining: { calories: number; protein_g: number; carbs_g: number; fat_g: number } | null; entries: unknown[] };
 type NavigationItem = { name: string; icon: LucideIcon };
 
 const navigation: NavigationItem[] = [
@@ -33,6 +34,7 @@ const navigation: NavigationItem[] = [
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [nutritionToday, setNutritionToday] = useState<NutritionOverview | null>(null);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -131,7 +133,7 @@ export default function App() {
     try {
       await api("/api/auth/logout", { method: "POST" });
       setUser(null);
-      setDashboard(null);
+      setDashboard(null);\n      setNutritionToday(null);
       setSection("Übersicht");
       setError("");
       setNotice("");
@@ -199,11 +201,14 @@ export default function App() {
               <Dumbbell size={48} />
             </section>
             <h3>Dein heutiger Überblick</h3>
-            <div className="metrics">
-              <Metric icon={Utensils} label="Kalorien" value={dashboard?.today.calories ?? 0} unit="kcal" />
-              <Metric icon={Activity} label="Protein" value={dashboard?.today.protein_g ?? 0} unit="g" />
-              <Metric icon={Apple} label="Kohlenhydrate" value={dashboard?.today.carbs_g ?? 0} unit="g" />
-              <Metric icon={Scale} label="Fett" value={dashboard?.today.fat_g ?? 0} unit="g" />
+            <div className="nutrition-totals dashboard-nutrition">
+              {([{key:"calories",label:"Kalorien",unit:"kcal"},{key:"protein_g",label:"Protein",unit:"g"},{key:"carbs_g",label:"Kohlenhydrate",unit:"g"},{key:"fat_g",label:"Fett",unit:"g"}] as const).map(({key,label,unit}) => {
+                const goal = nutritionToday?.goals?.[key] ?? null;
+                const consumed = nutritionToday?.consumed[key] ?? dashboard?.today[key] ?? 0;
+                const remaining = nutritionToday?.remaining?.[key] ?? null;
+                const progress = goal && goal > 0 ? Math.min(100, consumed / goal * 100) : 0;
+                return <article className="summary-card" key={key}><span>{label}</span><strong>{Math.round(consumed * 10) / 10} <small>{unit}</small></strong><div className="nutrition-track"><span style={{width: progress + "%"}}/></div><p>Tagesziel: {goal == null ? "nicht festgelegt" : goal + " " + unit}</p><em>{remaining == null ? "Ziel festlegen" : remaining >= 0 ? "Noch " + Math.round(remaining * 10) / 10 + " " + unit : Math.round(-remaining * 10) / 10 + " " + unit + " über Ziel"}</em></article>;
+              })}
             </div>
             <h3>Schnelle Einträge</h3>
             <div className="forms">
