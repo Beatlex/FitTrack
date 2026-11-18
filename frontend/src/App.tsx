@@ -139,7 +139,8 @@ export default function App() {
     try {
       await api("/api/auth/logout", { method: "POST" });
       setUser(null);
-      setDashboard(null);\n      setNutritionToday(null);
+      setDashboard(null);
+      setNutritionToday(null);
       setSection("Übersicht");
       setError("");
       setNotice("");
