@@ -1,6 +1,6 @@
 from datetime import date, datetime, time, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import User
@@ -126,5 +126,6 @@ def delete_meal(entry_id: int, db: Session = Depends(get_db), user: User = Depen
     meal = db.scalar(select(MealEntry).where(MealEntry.id == entry_id, MealEntry.user_id == user.id))
     if meal is None:
         raise HTTPException(404, "Mahlzeit nicht gefunden.")
+    db.execute(delete(MealIngredient).where(MealIngredient.meal_entry_id == meal.id))
     db.delete(meal)
     db.commit()
