@@ -302,3 +302,67 @@ def test_food_and_recipe_updates_are_owner_scoped(client: TestClient) -> None:
     assert client.put(f"/api/nutrition/foods/{food['id']}", json=food_payload).status_code == 404
     assert client.delete(f"/api/nutrition/foods/{food['id']}").status_code == 404
     assert client.put(f"/api/nutrition/recipes/{recipe['id']}", json=recipe_payload).status_code == 404
+
+
+def test_foods_and_recipes_are_shared_but_recipe_favorites_are_per_user(client: TestClient) -> None:
+    login(client, "shared-catalog-owner")
+    oats = client.post("/api/nutrition/foods", json={
+        "name": "Haferflocken", "basis_g": 100, "calories": 370,
+        "protein_g": 13, "carbs_g": 59, "fat_g": 7,
+    })
+    assert oats.status_code == 201
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Overnight Oats", "meal_type": "breakfast",
+        "ingredients": [{"food_id": oats.json()["id"], "amount_g": 50}],
+    })
+    assert recipe.status_code == 201
+
+    client.post("/api/auth/logout")
+    login(client, "shared-catalog-second")
+    visible_foods = client.get("/api/nutrition/foods?q=Haferflocken")
+    assert visible_foods.status_code == 200
+    assert len(visible_foods.json()) == 1
+    visible_recipes = client.get("/api/nutrition/recipes")
+    assert len(visible_recipes.json()) == 1
+    recipe_id = visible_recipes.json()[0]["id"]
+
+    # Either household user can maintain shared master data and recipes.
+    updated_food = client.put(f"/api/nutrition/foods/{oats.json()['id']}", json={
+        "name": "Haferflocken zart", "basis_g": 100, "calories": 380,
+        "protein_g": 14, "carbs_g": 60, "fat_g": 7,
+    })
+    assert updated_food.status_code == 200
+    updated_recipe = client.put(f"/api/nutrition/recipes/{recipe_id}", json={
+        "name": "Overnight Oats Deluxe", "meal_type": "breakfast",
+        "ingredients": [{"food_id": oats.json()["id"], "amount_g": 50}],
+    })
+    assert updated_recipe.status_code == 200
+
+    # Favorite state belongs to the logged-in user, not to the shared recipe.
+    assert client.patch(f"/api/nutrition/recipes/{recipe_id}/favorite",
+                        json={"is_favorite": True}).status_code == 200
+    assert len(client.get("/api/nutrition/recipes?favorites_only=true").json()) == 1
+    client.post("/api/auth/logout")
+    login(client, "shared-catalog-owner")
+    assert len(client.get("/api/nutrition/recipes").json()) == 1
+    assert client.get("/api/nutrition/recipes?favorites_only=true").json() == []
+    assert client.get("/api/nutrition/foods?q=zart").json()[0]["calories"] == 380
+
+    # A food referenced by a saved recipe cannot be archived accidentally.
+    assert client.delete(f"/api/nutrition/foods/{oats.json()['id']}").status_code == 409
+
+
+def test_shared_catalog_duplicate_detection_and_system_food_protection(client: TestClient) -> None:
+    login(client, "shared-duplicate-a")
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Naturjoghurt", "basis_g": 100, "calories": 65,
+        "protein_g": 4, "carbs_g": 5, "fat_g": 3,
+    })
+    assert food.status_code == 201
+    client.post("/api/auth/logout")
+    login(client, "shared-duplicate-b")
+    duplicate = client.post("/api/nutrition/foods", json={
+        "name": "naturjoghurt", "basis_g": 100, "calories": 65,
+        "protein_g": 4, "carbs_g": 5, "fat_g": 3,
+    })
+    assert duplicate.status_code == 409
