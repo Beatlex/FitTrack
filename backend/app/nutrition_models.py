@@ -10,6 +10,7 @@ class Food(Base):
     __tablename__ = "foods"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    household_id: Mapped[int | None] = mapped_column(ForeignKey("households.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
     basis_g: Mapped[float] = mapped_column(Float, nullable=False, default=100)
@@ -65,6 +66,7 @@ class MealTemplate(Base):
     __tablename__ = "meal_templates"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    household_id: Mapped[int | None] = mapped_column(ForeignKey("households.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     meal_type: Mapped[str] = mapped_column(String(20), nullable=False)
     is_favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

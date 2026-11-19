@@ -166,3 +166,60 @@
 .recipe-form-actions .primary{margin:0}
 .food-row{min-width:0}
 @media(max-width:600px){.food-editor-toggle{align-items:flex-start;flex-direction:column}.food-editor-toggle button{width:100%;justify-content:center}.food-editor-form{padding:12px}}
+
+/* Household workspace */
+.household-page{display:grid;gap:17px}
+.household-hero{display:flex;align-items:center;gap:17px;padding:24px}
+.household-icon,.member-avatar{width:42px;height:42px;flex:0 0 auto;border-radius:12px;background:#332b4b;color:#b49cff;display:grid;place-items:center}
+.household-hero>div:nth-child(2){flex:1;min-width:0}
+.household-hero small{font-size:10px;letter-spacing:1.4px;color:#929bad;font-weight:750}
+.household-hero h2{font-size:21px;margin:5px 0}
+.household-hero p,.household-section .panel-heading p{margin:0;color:#929bad;font-size:12px;line-height:1.5}
+.household-role,.member-tag,.owner-tag,.member-count{border:1px solid #40365e;border-radius:30px;padding:7px 11px;color:#c3b5ff;font-size:11px;white-space:nowrap}
+.household-section{padding:22px}
+.household-section .panel-heading{margin-bottom:16px}
+.household-section .panel-heading h2{font-size:16px;margin:0 0 5px;display:flex;align-items:center;gap:9px}
+.household-section .panel-heading h2 svg{color:#b49cff}
+.household-list{display:grid;gap:9px}
+.household-member,.household-invite{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #2d3545;border-radius:11px;background:#151a24;min-width:0}
+.member-avatar{width:36px;height:36px;border-radius:10px}
+.member-info{display:grid;gap:4px;flex:1;min-width:0}
+.member-info b{font-size:13px;color:#f1f2f6}
+.member-info small{font-size:11px;color:#8994a8}
+.owner-tag{display:flex;align-items:center;gap:5px;color:#c7b7ff}
+.icon-danger{display:grid;place-items:center;width:34px;height:34px;border:1px solid #583b46;border-radius:8px;background:#2b2029;color:#e9a5b0}
+.icon-danger:disabled{opacity:.5;cursor:not-allowed}
+.household-invite-form label,.household-create-form label{display:block;color:#c3c9d5;font-size:12px;margin-bottom:7px}
+.invite-input-row{display:flex;gap:9px;align-items:center}
+.invite-input-row input{flex:1;min-width:0;margin:0}
+.invite-input-row .primary{width:auto;margin:0;white-space:nowrap}
+.household-actions .primary.compact{width:auto;margin:0;padding:9px 11px;font-size:11px}
+.household-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.household-actions .secondary-button{white-space:nowrap}
+.pending-list{border-top:1px solid #303747;margin-top:18px;padding-top:16px}
+.pending-list h3{font-size:13px;margin:0 0 10px}
+.pending-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #2a3140;font-size:12px}
+.pending-row span{font-weight:650;flex:1}
+.pending-row small{color:#929bad}
+.future-module{display:flex;align-items:center;gap:14px;min-width:0}
+.household-future-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.future-icon{width:24px;height:24px;color:#a991ff;flex:0 0 auto}
+.future-module>div{display:grid;gap:4px}
+.future-module b{font-size:13px}
+.future-module small{color:#929bad;font-size:11px}
+.future-module span{font-size:10px;color:#a995ed;letter-spacing:.4px}
+.household-sharing-note{display:flex;align-items:center;gap:10px;padding:13px 15px;border:1px solid #39334e;border-radius:10px;background:#1b1a29;color:#b8a7f4}
+.household-sharing-note p{margin:0;font-size:11px;line-height:1.5}
+.household-loading{color:#929bad;font-size:13px}
+.leave-household{display:flex;align-items:center;justify-content:space-between;gap:15px}
+.leave-household h2{font-size:14px;display:flex;align-items:center;gap:8px;margin:0 0 6px}
+.leave-household h2 svg{color:#b49cff}
+.leave-household p{margin:0;max-width:650px}
+@media(max-width:700px){.household-hero{align-items:flex-start;flex-wrap:wrap;padding:18px}.household-role{margin-left:58px}.household-future-grid{grid-template-columns:1fr}.household-actions{width:100%;padding-left:48px}.pending-row{flex-wrap:wrap}.pending-row small{order:2;width:100%}.leave-household{align-items:flex-start;flex-direction:column}.invite-input-row{align-items:stretch;flex-direction:column}.invite-input-row .primary{width:100%;justify-content:center}}
+
+.dashboard-weight-trend{margin:-12px 0 30px;padding:20px 22px}
+.dashboard-weight-current{color:#c5b7ff;font-size:18px;font-variant-numeric:tabular-nums}
+.dashboard-weight-chart{width:100%;overflow:hidden}
+.dashboard-weight-chart svg{display:block;width:100%;height:auto;min-height:125px}
+.dashboard-weight-empty{min-height:90px;display:flex;align-items:center;justify-content:center;text-align:center;color:#929bad;font-size:12px}
+@media(max-width:600px){.dashboard-weight-trend{padding:16px;margin:-8px 0 24px}.dashboard-weight-chart svg{min-height:100px}}

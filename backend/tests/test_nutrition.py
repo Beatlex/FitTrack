@@ -30,6 +30,25 @@ def login(client: TestClient, username: str) -> None:
     password = "correct-horse-battery-staple"
     assert client.post("/api/auth/register", json={"username": username, "password": password}).status_code == 201
     assert client.post("/api/auth/login", json={"username": username, "password": password}).status_code == 200
+    if client.get("/api/household").json()["household"] is None:
+        assert client.post("/api/household", json={"name": username + " Household"}).status_code == 201
+
+
+
+def invite_and_switch_to_second_user(client: TestClient, username: str) -> None:
+    password = "correct-horse-battery-staple"
+    assert client.post("/api/auth/register", json={
+        "username": username, "password": password,
+    }).status_code == 201
+    invitation = client.post("/api/household/invitations", json={"username": username})
+    assert invitation.status_code == 201
+    invitation_id = invitation.json()["id"]
+    assert client.post("/api/auth/logout").status_code == 200
+    assert client.post("/api/auth/login", json={
+        "username": username, "password": password,
+    }).status_code == 200
+    assert client.post(f"/api/household/invitations/{invitation_id}/accept").status_code == 200
+
 
 def test_overnight_oats_breakfast_and_daily_remaining(client: TestClient) -> None:
     login(client, "oats-user")
@@ -102,8 +121,7 @@ def test_second_user_can_use_shared_food_and_meal_limits_are_enforced(client: Te
     private_food = client.post("/api/nutrition/foods", json={
         "name": "Private Ingredient", "calories": 100, "protein_g": 1, "carbs_g": 1, "fat_g": 1,
     }).json()
-    client.post("/api/auth/logout")
-    login(client, "recipe-second")
+    invite_and_switch_to_second_user(client, "recipe-second")
     response = client.post("/api/nutrition/meals", json={
         "meal_name": "Unauthorized recipe",
         "meal_type": "breakfast",
@@ -249,8 +267,7 @@ def test_foods_and_recipes_are_shared_but_recipe_favorites_are_per_user(client: 
     })
     assert recipe.status_code == 201
 
-    client.post("/api/auth/logout")
-    login(client, "shared-catalog-second")
+    invite_and_switch_to_second_user(client, "shared-catalog-second")
     visible_foods = client.get("/api/nutrition/foods?q=Haferflocken")
     assert visible_foods.status_code == 200
     assert len(visible_foods.json()) == 1
@@ -291,8 +308,7 @@ def test_shared_catalog_duplicate_detection_and_system_food_protection(client: T
         "protein_g": 4, "carbs_g": 5, "fat_g": 3,
     })
     assert food.status_code == 201
-    client.post("/api/auth/logout")
-    login(client, "shared-duplicate-b")
+    invite_and_switch_to_second_user(client, "shared-duplicate-b")
     duplicate = client.post("/api/nutrition/foods", json={
         "name": "naturjoghurt", "basis_g": 100, "calories": 65,
         "protein_g": 4, "carbs_g": 5, "fat_g": 3,

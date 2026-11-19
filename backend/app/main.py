@@ -13,6 +13,8 @@ from .database import Base, engine, get_db
 from .dependencies import current_user
 from .models import FoodEntry, Measurement, User
 from . import nutrition_models  # Register nutrition tables before create_all
+from . import household_models  # Register household tables before create_all
+from .household_models import Household, HouseholdMember
 from .schemas import MeasurementCreate, MeasurementUpdate
 
 Base.metadata.create_all(bind=engine)
@@ -83,10 +85,10 @@ def register(data: dict, db: Session = Depends(get_db)):
         raise HTTPException(400, "Benutzername: 3–40 Zeichen; Passwort: mindestens 10 Zeichen.")
     if db.scalar(select(User).where(User.username == username)):
         raise HTTPException(409, "Benutzername bereits vergeben.")
-    if (db.scalar(select(func.count(User.id))) or 0) >= 2:
-        raise HTTPException(403, "Die zwei Konten sind bereits eingerichtet.")
     user = User(username=username, password_hash=password_hasher.hash(password))
     db.add(user)
+    db.flush()
+    # Household membership is opt-in: each account can create or join one later.
     db.commit()
     db.refresh(user)
     return {"id": user.id, "username": user.username}
@@ -253,4 +255,6 @@ def dashboard(db: Session = Depends(get_db), user: User = Depends(current_user))
 
 
 from .routers.nutrition import router as nutrition_router
+from .routers.household import router as household_router
 app.include_router(nutrition_router)
+app.include_router(household_router)
