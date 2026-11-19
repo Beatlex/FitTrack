@@ -10,6 +10,7 @@ Privates Fitness- und Ernährungstracking mit Haushaltsverwaltung. Mitglieder ei
 ## Windows-Entwicklung
 
 ### Backend – Eingabeaufforderung (CMD)
+Vor einer Migration den laufenden Backend-Server stoppen und `data/fittrack.db` sichern. Die Migrationen werden einmalig nach einem Update in der angegebenen Reihenfolge ausgeführt.
 ```cmd
 cd backend
 py -3.14 -m venv .venv
