@@ -323,6 +323,7 @@ def test_account_deletion_keeps_food_as_recipe_dependency_without_general_access
 
     client.post("/api/auth/logout")
     login(client, "dependency-food-owner")
+    assert client.delete("/api/household/leave").status_code == 204
     deleted = client.request("DELETE", "/api/auth/account", json={
         "password": PASSWORD, "confirmation": "dependency-food-owner",
     })
