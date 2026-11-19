@@ -135,8 +135,20 @@ def archive_food(food_id: int, db: Session = Depends(get_db),
     ).limit(1))
     if used_by_recipe is not None:
         raise HTTPException(409, "Dieses Lebensmittel wird in gespeicherten Gerichten verwendet. Bearbeite diese Gerichte zuerst.")
-    # Soft archive preserves meal-entry foreign keys and historical snapshots.
-    food.is_active = False
+    other_grants = db.scalar(select(func.count()).select_from(FoodAccess).where(
+        FoodAccess.food_id == food_id,
+        FoodAccess.user_id != user.id,
+    )) or 0
+    if other_grants:
+        marker = db.scalar(select(FoodHiddenByUser).where(
+            FoodHiddenByUser.food_id == food_id,
+            FoodHiddenByUser.user_id == user.id,
+        ))
+        if marker is None:
+            db.add(FoodHiddenByUser(food_id=food_id, user_id=user.id))
+    else:
+        # Private archive preserves meal-entry foreign keys and historical snapshots.
+        food.is_active = False
     db.commit()
     return Response(status_code=204)
 
@@ -147,7 +159,8 @@ def list_hidden_foods(db: Session = Depends(get_db), user: User = Depends(curren
     foods = db.scalars(
         select(Food)
         .join(FoodHiddenByUser, FoodHiddenByUser.food_id == Food.id)
-        .where(FoodHiddenByUser.user_id == user.id)
+        .join(FoodAccess, FoodAccess.food_id == Food.id)
+        .where(FoodHiddenByUser.user_id == user.id, FoodAccess.user_id == user.id)
         .order_by(Food.name, Food.id)
     ).all()
     return [food_dict(food) for food in foods]
@@ -407,7 +420,8 @@ def list_hidden_recipes(db: Session = Depends(get_db), user: User = Depends(curr
     templates = db.scalars(
         select(MealTemplate)
         .join(RecipeHiddenByUser, RecipeHiddenByUser.recipe_id == MealTemplate.id)
-        .where(RecipeHiddenByUser.user_id == user.id)
+        .join(RecipeAccess, RecipeAccess.recipe_id == MealTemplate.id)
+        .where(RecipeHiddenByUser.user_id == user.id, RecipeAccess.user_id == user.id)
         .order_by(MealTemplate.name, MealTemplate.id)
     ).all()
     return [recipe_dict(template, db, user.id) for template in templates]
@@ -559,12 +573,24 @@ def delete_recipe(recipe_id: int, db: Session = Depends(get_db),
     ))
     if template is None:
         raise HTTPException(404, "Gericht nicht gefunden.")
-    db.execute(delete(MealTemplateIngredient).where(
-        MealTemplateIngredient.template_id == template.id
-    ))
-    db.execute(delete(MealTemplateFavorite).where(
-        MealTemplateFavorite.template_id == template.id
-    ))
-    db.delete(template)
+    other_grants = db.scalar(select(func.count()).select_from(RecipeAccess).where(
+        RecipeAccess.recipe_id == recipe_id,
+        RecipeAccess.user_id != user.id,
+    )) or 0
+    if other_grants:
+        marker = db.scalar(select(RecipeHiddenByUser).where(
+            RecipeHiddenByUser.recipe_id == recipe_id,
+            RecipeHiddenByUser.user_id == user.id,
+        ))
+        if marker is None:
+            db.add(RecipeHiddenByUser(recipe_id=recipe_id, user_id=user.id))
+    else:
+        db.execute(delete(MealTemplateIngredient).where(
+            MealTemplateIngredient.template_id == template.id
+        ))
+        db.execute(delete(MealTemplateFavorite).where(
+            MealTemplateFavorite.template_id == template.id
+        ))
+        db.delete(template)
     db.commit()
     return Response(status_code=204)
