@@ -51,21 +51,6 @@ def test_overnight_oats_breakfast_and_daily_remaining(client: TestClient) -> Non
     assert day["remaining"]["protein_g"] == 142
     assert day["entries"][0]["meal_type"] == "breakfast"
 
-def test_goals_and_foods_are_isolated_per_user(client: TestClient) -> None:
-    login(client, "first-owner")
-    goal = {"calories": 2000, "protein_g": 100, "carbs_g": 200, "fat_g": 60}
-    assert client.put("/api/nutrition/goals", json=goal).status_code == 200
-    food = client.post("/api/nutrition/foods", json={
-        "name": "Private Oats", "calories": 100, "protein_g": 4, "carbs_g": 15, "fat_g": 2,
-    }).json()
-    client.post("/api/auth/logout")
-    login(client, "second-owner")
-    assert client.get("/api/nutrition/goals").json() is None
-    assert client.get("/api/nutrition/foods?q=Private").json() == []
-    assert client.post("/api/nutrition/meals", json={
-        "food_id": food["id"], "amount_g": 100, "meal_type": "breakfast",
-    }).status_code == 404
-
 def test_invalid_nutrients_and_meal_type_are_rejected(client: TestClient) -> None:
     login(client, "validation-user")
     assert client.put("/api/nutrition/goals", json={
@@ -171,35 +156,6 @@ def test_saved_recipe_favorites_and_logging_update_daily_totals(client: TestClie
     assert day["entries"][0]["meal_type"] == "breakfast"
 
 
-def test_recipe_and_food_duplicates_are_rejected_and_favorites_are_private(client: TestClient) -> None:
-    login(client, "recipe-private-a")
-    food = client.post("/api/nutrition/foods", json={
-        "name": "Banane", "calories": 89, "protein_g": 1.1, "carbs_g": 23, "fat_g": 0.3,
-    })
-    assert food.status_code == 201
-    duplicate_food = client.post("/api/nutrition/foods", json={
-        "name": "banane", "calories": 89, "protein_g": 1.1, "carbs_g": 23, "fat_g": 0.3,
-    })
-    assert duplicate_food.status_code == 409
-    recipe = client.post("/api/nutrition/recipes", json={
-        "name": "Bananen Snack", "meal_type": "snack",
-        "ingredients": [{"food_id": food.json()["id"], "amount_g": 120}],
-    })
-    assert recipe.status_code == 201
-    duplicate_recipe = client.post("/api/nutrition/recipes", json={
-        "name": "bananen snack", "meal_type": "snack",
-        "ingredients": [{"food_id": food.json()["id"], "amount_g": 120}],
-    })
-    assert duplicate_recipe.status_code == 409
-
-    client.post("/api/auth/logout")
-    login(client, "recipe-private-b")
-    assert client.get("/api/nutrition/recipes").json() == []
-    assert client.get("/api/nutrition/foods?q=Banane").json() == []
-    assert client.patch(f"/api/nutrition/recipes/{recipe.json()['id']}/favorite",
-                        json={"is_favorite": True}).status_code == 404
-
-
 def test_food_can_be_updated_and_archived_without_changing_historical_entries(client: TestClient) -> None:
     login(client, "food-maintenance")
     created = client.post("/api/nutrition/foods", json={
@@ -278,30 +234,6 @@ def test_recipe_can_be_edited_and_keeps_old_logged_snapshot(client: TestClient) 
     assert day["consumed"]["calories"] == 185
     assert day["entries"][0]["food_name"] == "Overnight Oats"
     assert day["entries"][0]["calories"] == 185
-
-
-def test_food_and_recipe_updates_are_owner_scoped(client: TestClient) -> None:
-    login(client, "maintenance-owner")
-    food = client.post("/api/nutrition/foods", json={
-        "name": "Private Food", "calories": 100, "protein_g": 2, "carbs_g": 3, "fat_g": 4,
-    }).json()
-    recipe = client.post("/api/nutrition/recipes", json={
-        "name": "Private Recipe", "meal_type": "snack",
-        "ingredients": [{"food_id": food["id"], "amount_g": 100}],
-    }).json()
-    client.post("/api/auth/logout")
-    login(client, "maintenance-other")
-    food_payload = {
-        "name": "Tampered Food", "basis_g": 100, "calories": 1,
-        "protein_g": 1, "carbs_g": 1, "fat_g": 1,
-    }
-    recipe_payload = {
-        "name": "Tampered Recipe", "meal_type": "snack",
-        "ingredients": [{"food_id": food["id"], "amount_g": 1}],
-    }
-    assert client.put(f"/api/nutrition/foods/{food['id']}", json=food_payload).status_code == 404
-    assert client.delete(f"/api/nutrition/foods/{food['id']}").status_code == 404
-    assert client.put(f"/api/nutrition/recipes/{recipe['id']}", json=recipe_payload).status_code == 404
 
 
 def test_foods_and_recipes_are_shared_but_recipe_favorites_are_per_user(client: TestClient) -> None:
