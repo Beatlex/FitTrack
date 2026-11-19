@@ -12,6 +12,14 @@ from ..models import User
 router = APIRouter(prefix="/api/household", tags=["household"])
 
 
+class HouseholdCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
+class OwnerTransfer(BaseModel):
+    user_id: int = Field(gt=0)
+
+
 class InvitationCreate(BaseModel):
     username: str = Field(min_length=3, max_length=40, pattern=r"^[a-zA-Z0-9_.-]+$")
 
@@ -50,6 +58,27 @@ def household_payload(db: Session, household: Household, user_id: int) -> dict:
             for member, username in members
         ],
     }
+
+
+@router.post("", status_code=201)
+def create_household(data: HouseholdCreate, db: Session = Depends(get_db),
+                     user: User = Depends(current_user)):
+    if membership_for_user(db, user.id) is not None:
+        raise HTTPException(409, "Du gehörst bereits einem Haushalt an.")
+    name = data.name.strip()
+    if not name:
+        raise HTTPException(422, "Bitte gib einen Haushaltsnamen ein.")
+    household = Household(name=name, owner_id=user.id)
+    db.add(household)
+    db.flush()
+    db.add(HouseholdMember(household_id=household.id, user_id=user.id, role="owner"))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Der Haushalt konnte nicht erstellt werden. Bitte lade die Seite neu.")
+    db.refresh(household)
+    return household_payload(db, household, user.id)
 
 
 @router.get("")
@@ -191,8 +220,41 @@ def leave_household(db: Session = Depends(get_db), user: User = Depends(current_
     membership = membership_for_user(db, user.id)
     if membership is None:
         raise HTTPException(404, "Haushalt nicht gefunden.")
+    household = db.get(Household, membership.household_id)
     if membership.role == "owner":
-        raise HTTPException(409, "Der Haushaltsinhaber kann den Haushalt nicht verlassen. Eine Eigentümerübergabe wird später ergänzt.")
+        other_member = db.scalar(select(HouseholdMember).where(
+            HouseholdMember.household_id == membership.household_id,
+            HouseholdMember.user_id != user.id,
+        ))
+        if other_member is not None:
+            raise HTTPException(409, "Übertrage zuerst die Admin-Rolle an ein anderes Mitglied.")
+        if household is not None:
+            db.delete(household)
+        db.commit()
+        return Response(status_code=204)
     db.delete(membership)
     db.commit()
     return Response(status_code=204)
+
+
+@router.post("/transfer-owner")
+def transfer_owner(data: OwnerTransfer, db: Session = Depends(get_db),
+                   user: User = Depends(current_user)):
+    membership = membership_for_user(db, user.id)
+    if membership is None:
+        raise HTTPException(404, "Haushalt nicht gefunden.")
+    require_owner(db, user.id, membership.household_id)
+    target = db.scalar(select(HouseholdMember).where(
+        HouseholdMember.household_id == membership.household_id,
+        HouseholdMember.user_id == data.user_id,
+    ))
+    if target is None or target.user_id == user.id:
+        raise HTTPException(404, "Das ausgewählte Mitglied wurde nicht gefunden.")
+    household = db.get(Household, membership.household_id)
+    if household is None:
+        raise HTTPException(404, "Haushalt nicht gefunden.")
+    membership.role = "member"
+    target.role = "owner"
+    household.owner_id = target.user_id
+    db.commit()
+    return {"status": "transferred", "owner_id": target.user_id}
