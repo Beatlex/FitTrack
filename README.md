@@ -1,6 +1,6 @@
 # FitTrack
 
-Privates Fitness- und Ernährungstracking für zwei Personen im Haushalt. Persönliche Einträge und Tagesziele bleiben pro Benutzer getrennt. Der Lebensmittelkatalog und die gespeicherte Gerichtebibliothek sind aktuell bewusst für beide Haushaltsbenutzer gemeinsam nutzbar; Favoriten bleiben pro Benutzer privat.
+Privates Fitness- und Ernährungstracking mit Haushaltsverwaltung. Mitglieder eines Haushalts teilen standardmäßig Lebensmittel und gespeicherte Gerichte; Körpermessungen, Tagesziele und protokollierte Mahlzeiten bleiben persönlich. Rezeptfavoriten sind pro Benutzer privat.
 
 ## Technologie
 - Backend: Python 3.14, FastAPI, SQLAlchemy, SQLite
@@ -15,6 +15,9 @@ cd backend
 py -3.14 -m venv .venv
 .venv\Scripts\activate.bat
 python -m pip install -r requirements.txt
+python -c "from app.main import app"  # erstellt das Grundschema
+python -m app.migrate_nutrition
+python -m app.migrate_household
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 Kopiere den ausgegebenen Schlüssel und setze ihn in demselben Terminal:
@@ -29,6 +32,9 @@ cd backend
 py -3.14 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+python -c "from app.main import app"  # erstellt das Grundschema
+python -m app.migrate_nutrition
+python -m app.migrate_household
 $env:SESSION_SECRET = (python -c "import secrets; print(secrets.token_urlsafe(48))")
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
@@ -51,7 +57,9 @@ Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debi
 - Lese-, Änderungs- und Löschabfragen für Körperwerte sind immer auf den angemeldeten Benutzer eingeschränkt.
 - Passwörter werden mit Argon2 gehasht; Session-Cookies sind HttpOnly und SameSite=Lax.
 - Der lokale Entwicklungsschlüssel ist ausschließlich für lokale Tests gedacht. Produktionsstarts ohne einen mindestens 32 Zeichen langen `SESSION_SECRET` und ohne `COOKIE_SECURE=true` werden abgebrochen.
-- Lebensmittel und Gerichte verwenden derzeit einen expliziten Shared-Status für die beiden Haushaltskonten. Eine spätere Freigabeverwaltung sollte diesen einfachen Status durch separate, widerrufbare Berechtigungsdatensätze ersetzen.
+- Haushaltsmitgliedschaften und Einladungen werden serverseitig geprüft. Lebensmittel und Gerichte gehören zu einer konkreten Haushalt-ID; Einladungen werden erst nach ausdrücklicher Annahme wirksam.
+- Der Haushaltsinhaber kann offene Einladungen zurückziehen und Mitglieder entfernen. Mitglieder können den Haushalt verlassen; ein Inhaberwechsel ist noch nicht implementiert.
+- Der Household-Migrationsschritt ordnet bestehende Konten und bisher gemeinsam sichtbare Lebensmittel/Gerichte einem gemeinsamen Haushalt zu. Migrationen vor dem ersten App-Start ausführen (siehe Befehle oben).
 - Tagesziele, Körpermessungen und protokollierte Mahlzeiten bleiben strikt benutzerbezogen. Nährwert-Snapshots bereits protokollierter Mahlzeiten werden durch spätere Änderungen am Lebensmittel oder Rezept nicht verändert.
 
 ## Aktueller Funktionsumfang
@@ -61,7 +69,8 @@ Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debi
 - Messdatum/-uhrzeit, Verlauf, Zeitraumfilter, Gewichtsdiagramm, Bearbeiten und Löschen
 - Gemeinsamer Lebensmittelkatalog mit Suche, Anlegen, Bearbeiten und sicherem Archivieren
 - Gemeinsame Rezeptbibliothek mit Zutaten, Mengen, Bearbeiten und Löschen
+- Haushalts-Tab mit Mitgliederübersicht, Einladungen per bestehendem Benutzernamen, Annahme/Ablehnung und Entfernen/Verlassen
 - Persönliche Rezeptfavoriten sowie individuelle Tagesziele und private Mahlzeitenprotokolle
 
 ## Geplante Ausbaustufen
-Alembic als versioniertes Migrationssystem, Profilverwaltung, vollständige Ernährungshistorie mit Bearbeiten/Löschen, Statistiken, explizite Freigaben und automatische Backups.
+Alembic als versioniertes Migrationssystem, Eigentümerübergabe und Haushaltsrollen, vollständige Ernährungshistorie mit Bearbeiten/Löschen, externe Lebensmitteldatenbank, Statistiken, Wochenplan, Einkaufsplan und automatische Backups.
