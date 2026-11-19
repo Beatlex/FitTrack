@@ -58,7 +58,8 @@ Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debi
 - Lese-, Änderungs- und Löschabfragen für Körperwerte sind immer auf den angemeldeten Benutzer eingeschränkt.
 - Passwörter werden mit Argon2 gehasht; Session-Cookies sind HttpOnly und SameSite=Lax.
 - Der lokale Entwicklungsschlüssel ist ausschließlich für lokale Tests gedacht. Produktionsstarts ohne einen mindestens 32 Zeichen langen `SESSION_SECRET` und ohne `COOKIE_SECURE=true` werden abgebrochen.
-- Haushaltsmitgliedschaften und Einladungen werden serverseitig geprüft. Lebensmittel und Gerichte gehören zu einer konkreten Haushalt-ID; Einladungen werden erst nach ausdrücklicher Annahme wirksam.
+- Haushaltsmitgliedschaften und Einladungen werden serverseitig geprüft. Lebensmittel und Gerichte werden über normalisierte, benutzerspezifische Freigaben (FoodAccess/RecipeAccess) sichtbar gemacht; Einladungen werden erst nach ausdrücklicher Annahme wirksam.
+- Rezeptfreigaben erlauben die Auflösung der benötigten Zutaten innerhalb des Rezepts, ohne diese automatisch im allgemeinen Lebensmittelfinder freizugeben. Persönliches Ausblenden ist getrennt von der Freigabe.
 - Der Ersteller bleibt dauerhaft Admin. Er kann offene Einladungen zurückziehen und Mitglieder entfernen. Mitglieder können den Haushalt verlassen; der Admin kann den Haushalt auflösen, sobald er alleiniger Teilnehmer ist. Bei der Auflösung bleiben Lebensmittel und Gerichte als private Einträge ihrer Ersteller erhalten.
 - Der Household-Migrationsschritt legt das Schema an, erstellt aber keinen Haushalt automatisch. Bestehende Benutzer bleiben unabhängig, bis sie selbst einen Haushalt erstellen oder eine Einladung annehmen. Migrationen vor dem ersten App-Start ausführen (siehe Befehle oben).
 - Tagesziele, Körpermessungen und protokollierte Mahlzeiten bleiben strikt benutzerbezogen. Nährwert-Snapshots bereits protokollierter Mahlzeiten werden durch spätere Änderungen am Lebensmittel oder Rezept nicht verändert.
@@ -70,11 +71,12 @@ Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debi
 - Messdatum/-uhrzeit, Verlauf, Zeitraumfilter, Gewichtsdiagramm, Bearbeiten und Löschen
 - Gemeinsamer Lebensmittelkatalog mit Suche, Anlegen, Bearbeiten und sicherem Archivieren
 - Gemeinsame Rezeptbibliothek mit Zutaten, Mengen, Bearbeiten und Löschen
-- Haushalts-Tab mit selbstständiger Erstellung, Mitgliederübersicht, Einladungen per bestehendem Benutzernamen, Annahme/Ablehnung und Entfernen/Verlassen
+- Haushalts-Tab mit selbstständiger Erstellung, Mitgliederübersicht, Einladungen per bestehendem Benutzernamen, Annahme/Ablehnung, Entfernen/Verlassen und gezielten Einzelberechtigungen pro Lebensmittel/Gericht und Mitglied
+- Kontolöschung mit Passwort-/Benutzernamenbestätigung, persönlicher Datenbereinigung und Erhalt gemeinsam genutzter Katalogdaten
 - Persönliche Rezeptfavoriten sowie individuelle Tagesziele und private Mahlzeitenprotokolle
 
 ## Geplante Ausbaustufen
-Alembic als versioniertes Migrationssystem, Eigentümerübergabe und Haushaltsrollen, vollständige Ernährungshistorie mit Bearbeiten/Löschen, externe Lebensmitteldatenbank, Statistiken, Wochenplan, Einkaufsplan und automatische Backups.
+Alembic als versioniertes Migrationssystem, manuelle Eigentümerübergabe, vollständige Ernährungshistorie mit Bearbeiten/Löschen, externe Lebensmitteldatenbank, Statistiken, Wochenplan, Einkaufsplan und automatische Backups.
 
 - Beim Erstellen eines Haushalts werden bereits vorhandene eigene Lebensmittel und Gerichte des Erstellers in den Haushalt übernommen. Bei Annahme einer Einladung werden auch die bisherigen eigenen Katalogeinträge des beitretenden Benutzers geteilt. Beim Verlassen oder Entfernen werden eigene Einträge wieder privat; Lebensmittel, die von Rezepten verbleibender Mitglieder benötigt werden, bleiben für den Haushalt verfügbar.
 - Die Dashboard-Übersicht zeigt die letzten 30 Gewichtsmessungen aus dem persönlichen Körperwerte-Verlauf.
