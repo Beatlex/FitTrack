@@ -42,6 +42,7 @@ def household_payload(db: Session, household: Household, user_id: int) -> dict:
         "id": household.id,
         "name": household.name,
         "owner_id": household.owner_id,
+        "current_user_id": user_id,
         "current_user_role": next((m.role for m, _ in members if m.user_id == user_id), None),
         "members": [
             {"user_id": member.user_id, "username": username, "role": member.role,
