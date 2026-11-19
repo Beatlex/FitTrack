@@ -398,13 +398,34 @@ def list_recipes(q: str = Query(default="", max_length=100), favorites_only: boo
     return result
 
 
-def validate_recipe_ingredients(data: RecipeCreate, db: Session, user_id: int) -> None:
+def validate_recipe_ingredients(
+    data: RecipeCreate,
+    db: Session,
+    user_id: int,
+    recipe_id: int | None = None,
+) -> None:
     ids = {item.food_id for item in data.ingredients}
-    foods = db.scalars(visible_foods_statement(user_id, db).where(
-        Food.id.in_(ids), Food.is_active.is_(True)
+    if not ids:
+        raise HTTPException(400, "Ein Gericht benötigt mindestens eine Zutat.")
+    contextual_access = (
+        select(RecipeIngredientAccess.id).where(
+            RecipeIngredientAccess.recipe_id == recipe_id,
+            RecipeIngredientAccess.food_id == Food.id,
+            RecipeIngredientAccess.user_id == user_id,
+        ).exists()
+        if recipe_id is not None
+        else False
+    )
+    allowed_food_ids = db.scalars(select(Food.id).where(
+        Food.id.in_(ids),
+        Food.is_active.is_(True),
+        or_(
+            Food.id.in_(select(acl_visible_foods_statement(user_id).subquery().c.id)),
+            contextual_access,
+        ),
     )).all()
-    if len(foods) != len(ids):
-        raise HTTPException(404, "Mindestens ein aktives Lebensmittel wurde nicht gefunden.")
+    if set(allowed_food_ids) != ids:
+        raise HTTPException(404, "Mindestens ein aktives Lebensmittel wurde nicht gefunden oder ist für dieses Gericht nicht freigegeben.")
 
 
 
@@ -486,7 +507,7 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
     ))
     if duplicate is not None:
         raise HTTPException(409, "Ein anderes Gericht mit diesem Namen existiert bereits.")
-    validate_recipe_ingredients(data, db, user.id)
+    validate_recipe_ingredients(data, db, user.id, recipe_id=template.id)
     template.name = data.name
     template.meal_type = data.meal_type
     db.execute(delete(MealTemplateIngredient).where(
