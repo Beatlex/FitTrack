@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from .database import Base
 
@@ -79,3 +79,11 @@ class MealTemplateIngredient(Base):
     template_id: Mapped[int] = mapped_column(ForeignKey("meal_templates.id", ondelete="CASCADE"), nullable=False, index=True)
     food_id: Mapped[int] = mapped_column(ForeignKey("foods.id"), nullable=False)
     amount_g: Mapped[float] = mapped_column(Float, nullable=False)
+
+
+class MealTemplateFavorite(Base):
+    __tablename__ = "meal_template_favorites"
+    __table_args__ = (UniqueConstraint("user_id", "template_id", name="uq_meal_template_favorite_user_template"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    template_id: Mapped[int] = mapped_column(ForeignKey("meal_templates.id", ondelete="CASCADE"), nullable=False, index=True)
