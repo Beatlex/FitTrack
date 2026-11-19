@@ -38,7 +38,10 @@ def search_foods(q: str = Query(default="", max_length=100), db: Session = Depen
 
 @router.post("/foods", status_code=201)
 def create_food(data: FoodCreate, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    duplicate = db.scalar(select(Food).where(Food.owner_id == user.id, func.lower(Food.name) == data.name.lower()))\n    if duplicate is not None:\n        raise HTTPException(409, "Dieses Lebensmittel existiert bereits in deiner Sammlung.")\n    food = Food(owner_id=user.id, name=data.name, brand=data.brand, basis_g=data.basis_g,
+    duplicate = db.scalar(select(Food).where(Food.owner_id == user.id, func.lower(Food.name) == data.name.lower()))
+    if duplicate is not None:
+        raise HTTPException(409, "Dieses Lebensmittel existiert bereits in deiner Sammlung.")
+    food = Food(owner_id=user.id, name=data.name, brand=data.brand, basis_g=data.basis_g,
         calories=data.calories, protein_g=data.protein_g, carbs_g=data.carbs_g, fat_g=data.fat_g)
     db.add(food)
     db.commit()
