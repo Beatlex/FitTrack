@@ -12,7 +12,7 @@ def upgrade() -> None:
           id INTEGER PRIMARY KEY, owner_id INTEGER NULL REFERENCES users(id),
           name VARCHAR(160) NOT NULL, brand VARCHAR(100), basis_g FLOAT NOT NULL DEFAULT 100,
           calories FLOAT NOT NULL, protein_g FLOAT NOT NULL, carbs_g FLOAT NOT NULL, fat_g FLOAT NOT NULL,
-          is_system BOOLEAN NOT NULL DEFAULT 0, created_at DATETIME NOT NULL)""",
+          is_system BOOLEAN NOT NULL DEFAULT 0, is_shared BOOLEAN NOT NULL DEFAULT 1, created_at DATETIME NOT NULL)""",
         "CREATE INDEX IF NOT EXISTS ix_foods_owner_id ON foods(owner_id)",
         "CREATE INDEX IF NOT EXISTS ix_foods_name ON foods(name)",
         """CREATE TABLE IF NOT EXISTS nutrition_goals (
@@ -32,7 +32,7 @@ def upgrade() -> None:
           food_id INTEGER NULL REFERENCES foods(id), food_name VARCHAR(160) NOT NULL, amount_g FLOAT NOT NULL,
           calories FLOAT NOT NULL, protein_g FLOAT NOT NULL, carbs_g FLOAT NOT NULL, fat_g FLOAT NOT NULL)""",
         "CREATE INDEX IF NOT EXISTS ix_meal_ingredients_meal_entry_id ON meal_ingredients(meal_entry_id)",
-        """CREATE TABLE IF NOT EXISTS meal_templates (id INTEGER PRIMARY KEY, owner_id INTEGER NOT NULL REFERENCES users(id), name VARCHAR(160) NOT NULL, meal_type VARCHAR(20) NOT NULL, is_favorite BOOLEAN NOT NULL DEFAULT 0, created_at DATETIME NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS meal_templates (id INTEGER PRIMARY KEY, owner_id INTEGER NOT NULL REFERENCES users(id), name VARCHAR(160) NOT NULL, meal_type VARCHAR(20) NOT NULL, is_favorite BOOLEAN NOT NULL DEFAULT 0, is_shared BOOLEAN NOT NULL DEFAULT 1, created_at DATETIME NOT NULL)""",
         "CREATE INDEX IF NOT EXISTS ix_meal_templates_owner_id ON meal_templates(owner_id)",
         """CREATE TABLE IF NOT EXISTS meal_template_ingredients (id INTEGER PRIMARY KEY, template_id INTEGER NOT NULL REFERENCES meal_templates(id) ON DELETE CASCADE, food_id INTEGER NOT NULL REFERENCES foods(id), amount_g FLOAT NOT NULL)""",
         "CREATE INDEX IF NOT EXISTS ix_meal_template_ingredients_template_id ON meal_template_ingredients(template_id)",
@@ -46,6 +46,14 @@ def upgrade() -> None:
             connection.execute(text("ALTER TABLE foods ADD COLUMN is_favorite BOOLEAN NOT NULL DEFAULT 0"))
         if "is_active" not in columns:
             connection.execute(text("ALTER TABLE foods ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"))
+        if "is_shared" not in columns:
+            connection.execute(text("ALTER TABLE foods ADD COLUMN is_shared BOOLEAN NOT NULL DEFAULT 1"))
+        template_columns = {row[1] for row in connection.execute(text("PRAGMA table_info(meal_templates)"))}
+        if "is_shared" not in template_columns:
+            connection.execute(text("ALTER TABLE meal_templates ADD COLUMN is_shared BOOLEAN NOT NULL DEFAULT 1"))
+        # Existing catalogue items and recipes become household-shared.
+        connection.execute(text("UPDATE foods SET is_shared = 1"))
+        connection.execute(text("UPDATE meal_templates SET is_shared = 1"))
 
 if __name__ == "__main__":
     upgrade()
