@@ -85,8 +85,6 @@ def register(data: dict, db: Session = Depends(get_db)):
         raise HTTPException(400, "Benutzername: 3–40 Zeichen; Passwort: mindestens 10 Zeichen.")
     if db.scalar(select(User).where(User.username == username)):
         raise HTTPException(409, "Benutzername bereits vergeben.")
-    if (db.scalar(select(func.count(User.id))) or 0) >= 2:
-        raise HTTPException(403, "Die zwei Konten sind bereits eingerichtet.")
     user = User(username=username, password_hash=password_hasher.hash(password))
     db.add(user)
     db.flush()
