@@ -6,7 +6,7 @@ Run from backend: python -m app.migrate_nutrition
 from sqlalchemy import text
 from .database import engine
 
-def upgrade() -> None:
+def upgrade(bind=engine) -> None:
     statements = (
         """CREATE TABLE IF NOT EXISTS foods (
           id INTEGER PRIMARY KEY, owner_id INTEGER NULL REFERENCES users(id),
@@ -40,7 +40,7 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS ix_meal_template_favorites_user_id ON meal_template_favorites(user_id)",
         "CREATE INDEX IF NOT EXISTS ix_meal_template_favorites_template_id ON meal_template_favorites(template_id)",
     )
-    with engine.begin() as connection:
+    with bind.begin() as connection:
         # Create the base tables first so this also works on a brand-new database.
         for statement in statements:
             connection.execute(text(statement))
