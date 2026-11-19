@@ -5,7 +5,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base
 from app.household_models import Household, HouseholdMember
 from app.models import User
-from app.nutrition_models import Food, FoodAccess, MealTemplate, RecipeAccess
+from app.nutrition_models import Food, FoodAccess, MealTemplate, MealTemplateIngredient, RecipeAccess, RecipeIngredientAccess
 from app.migrate_catalog_access import upgrade
 
 
@@ -43,6 +43,8 @@ def test_catalog_access_migration_backfills_owners_and_household_members_idempot
             name="Shared Recipe", meal_type="lunch",
         )
         db.add_all([private_food, shared_food, shared_recipe])
+        db.flush()
+        db.add(MealTemplateIngredient(template_id=shared_recipe.id, food_id=shared_food.id, amount_g=50))
         db.commit()
         private_food_id = private_food.id
         shared_food_id = shared_food.id
@@ -67,6 +69,14 @@ def test_catalog_access_migration_backfills_owners_and_household_members_idempot
         assert recipe_grants == {first_id, second_id}
         assert db.scalar(select(func.count()).select_from(FoodAccess)) == 3
         assert db.scalar(select(func.count()).select_from(RecipeAccess)) == 2
+        ingredient_grants = set(db.scalars(
+            select(RecipeIngredientAccess.user_id).where(
+                RecipeIngredientAccess.recipe_id == shared_recipe_id,
+                RecipeIngredientAccess.food_id == shared_food_id,
+            )
+        ))
+        assert ingredient_grants == {first_id, second_id}
+        assert db.scalar(select(func.count()).select_from(RecipeIngredientAccess)) == 2
 
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
