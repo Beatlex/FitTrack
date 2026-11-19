@@ -18,7 +18,6 @@ class Food(Base):
     carbs_g: Mapped[float] = mapped_column(Float, nullable=False)
     fat_g: Mapped[float] = mapped_column(Float, nullable=False)
     is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    is_favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Shared by the two current household accounts; replace with explicit ACLs later.
     is_shared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
