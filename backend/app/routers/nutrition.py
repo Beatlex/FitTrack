@@ -131,7 +131,7 @@ def add_meal(data: MealCreate, db: Session = Depends(get_db), user: User = Depen
     if data.food_id is not None and data.amount_g is not None:
         requested = [(data.food_id, data.amount_g)]
     food_ids = {food_id for food_id, _ in requested}
-    foods = db.scalars(visible_foods_statement(user.id).where(Food.id.in_(food_ids))).all()
+    foods = db.scalars(visible_foods_statement(user.id).where(Food.id.in_(food_ids), Food.is_active.is_(True))).all()
     food_by_id = {food.id: food for food in foods}
     if len(food_by_id) != len(food_ids):
         raise HTTPException(404, "Mindestens ein Lebensmittel wurde nicht gefunden.")
@@ -174,7 +174,7 @@ def delete_meal(entry_id: int, db: Session = Depends(get_db), user: User = Depen
 @router.patch("/foods/{food_id}/favorite")
 def set_food_favorite(food_id: int, data: FavoriteUpdate, db: Session = Depends(get_db),
                       user: User = Depends(current_user)):
-    food = db.scalar(select(Food).where(Food.id == food_id, Food.owner_id == user.id))
+    food = db.scalar(select(Food).where(Food.id == food_id, Food.owner_id == user.id, Food.is_active.is_(True)))
     if food is None:
         raise HTTPException(404, "Lebensmittel nicht gefunden.")
     food.is_favorite = data.is_favorite
