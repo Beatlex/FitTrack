@@ -149,3 +149,20 @@
 .overview-nutrition-link p{line-height:1.6}
 .overview-nutrition-link .primary{width:auto}
 @media(max-width:700px){.recipe-cards{grid-template-columns:1fr}.recipe-meta{grid-template-columns:1fr}.nutrition-nav{width:100%}.nutrition-nav button{flex:1}.nutrition-tools{flex-wrap:wrap}}
+
+
+/* Food master-data editor and compact row actions */
+.food-editor-toggle{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:8px;padding:14px;background:#151a24;border:1px solid #303747;border-radius:11px}
+.food-editor-toggle>div{display:grid;gap:4px}
+.food-editor-toggle b{font-size:13px;color:#e5e7ef}
+.food-editor-toggle small{font-size:10px;color:#929bad}
+.food-editor-form{display:grid;gap:12px;margin-top:12px;padding:16px;background:#151a24;border:1px solid #3a3453;border-radius:11px}
+.food-actions{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.icon-action{display:grid;place-items:center;width:36px;height:36px;border:1px solid #3a4355;background:#222938;color:#c5b7ff;border-radius:8px}
+.icon-action:hover{background:#332b4b}
+.icon-action.danger{color:#e4a5a5}
+.icon-action.danger:hover{background:#452d36;border-color:#70404a}
+.recipe-form-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.recipe-form-actions .primary{margin:0}
+.food-row{min-width:0}
+@media(max-width:600px){.food-editor-toggle{align-items:flex-start;flex-direction:column}.food-editor-toggle button{width:100%;justify-content:center}.food-editor-form{padding:12px}}
