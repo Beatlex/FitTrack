@@ -394,3 +394,33 @@ def test_departing_food_owner_loses_picker_access_but_existing_recipe_dependency
     logged = client.post(f"/api/nutrition/recipes/{recipe.json()['id']}/log")
     assert logged.status_code == 201
     assert logged.json()["calories"] == 80
+
+
+def test_catalog_idor_attempts_are_rejected_without_explicit_grants(client: TestClient) -> None:
+    login(client, "acl-private-owner")
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Strictly Private Food", "basis_g": 100, "calories": 100,
+        "protein_g": 5, "carbs_g": 10, "fat_g": 2,
+    }).json()
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Strictly Private Recipe", "meal_type": "lunch",
+        "ingredients": [{"food_id": food["id"], "amount_g": 100}],
+    }).json()
+
+    client.post("/api/auth/logout")
+    login(client, "acl-unrelated-user")
+    assert client.get("/api/nutrition/foods?q=Strictly%20Private").json() == []
+    assert client.get("/api/nutrition/recipes?q=Strictly%20Private").json() == []
+    assert client.put(f"/api/nutrition/foods/{food['id']}", json={
+        "name": "Unauthorized Edit", "basis_g": 100, "calories": 1,
+        "protein_g": 1, "carbs_g": 1, "fat_g": 1,
+    }).status_code == 404
+    assert client.put(f"/api/nutrition/recipes/{recipe['id']}", json={
+        "name": "Unauthorized Recipe Edit", "meal_type": "lunch",
+        "ingredients": [{"food_id": food["id"], "amount_g": 100}],
+    }).status_code == 404
+    assert client.post(f"/api/nutrition/recipes/{recipe['id']}/log").status_code == 404
+    assert client.patch(f"/api/nutrition/recipes/{recipe['id']}/favorite", json={
+        "is_favorite": True,
+    }).status_code == 404
+    assert client.post(f"/api/nutrition/foods/{food['id']}/hide").status_code == 404
