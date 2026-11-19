@@ -123,6 +123,11 @@ def archive_food(food_id: int, db: Session = Depends(get_db),
     ))
     if food is None:
         raise HTTPException(404, "Bearbeitbares Lebensmittel nicht gefunden.")
+    used_by_recipe = db.scalar(select(MealTemplateIngredient.id).where(
+        MealTemplateIngredient.food_id == food_id
+    ).limit(1))
+    if used_by_recipe is not None:
+        raise HTTPException(409, "Dieses Lebensmittel wird in gespeicherten Gerichten verwendet. Bearbeite diese Gerichte zuerst.")
     other_grants = db.scalar(select(func.count()).select_from(FoodAccess).where(
         FoodAccess.food_id == food_id,
         FoodAccess.user_id != user.id,
@@ -135,11 +140,6 @@ def archive_food(food_id: int, db: Session = Depends(get_db),
         if marker is None:
             db.add(FoodHiddenByUser(food_id=food_id, user_id=user.id))
     else:
-        used_by_recipe = db.scalar(select(MealTemplateIngredient.id).where(
-            MealTemplateIngredient.food_id == food_id
-        ).limit(1))
-        if used_by_recipe is not None:
-            raise HTTPException(409, "Dieses Lebensmittel wird in gespeicherten Gerichten verwendet. Bearbeite diese Gerichte zuerst.")
         # Private archive preserves meal-entry foreign keys and historical snapshots.
         food.is_active = False
     db.commit()
