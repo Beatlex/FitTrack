@@ -47,6 +47,7 @@ def login(client: TestClient, username: str) -> None:
 
 def test_invitation_requires_acceptance_and_grants_household_catalog_access(client: TestClient) -> None:
     register(client, "household-owner")
+    login(client, "household-owner")
     owner_household = client.get("/api/household").json()["household"]
     assert owner_household["current_user_role"] == "owner"
     assert len(owner_household["members"]) == 1
@@ -92,6 +93,7 @@ def test_invitation_requires_acceptance_and_grants_household_catalog_access(clie
 def test_invitation_authorization_duplicate_and_owner_protection(client: TestClient) -> None:
     register(client, "owner-account")
     register(client, "member-account")
+    login(client, "owner-account")
     assert client.post("/api/household/invitations", json={"username": "missing-account"}).status_code == 404
     assert client.post("/api/household/invitations", json={"username": "owner-account"}).status_code == 400
 
@@ -116,6 +118,7 @@ def test_invitation_authorization_duplicate_and_owner_protection(client: TestCli
 def test_invitee_can_decline_and_owner_can_revoke_pending_invitation(client: TestClient) -> None:
     register(client, "invite-owner")
     register(client, "invite-target")
+    login(client, "invite-owner")
     invitation = client.post("/api/household/invitations", json={"username": "invite-target"}).json()
     client.post("/api/auth/logout")
     login(client, "invite-target")
