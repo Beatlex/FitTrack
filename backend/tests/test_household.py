@@ -67,7 +67,7 @@ def test_invitation_requires_acceptance_and_grants_household_catalog_access(clie
     before_accept = client.get("/api/household").json()
     assert before_accept["household"] is None
     assert len(before_accept["invitations"]) == 1
-    assert client.get("/api/nutrition/foods?q=Haferflocken").json() == []
+    assert client.get("/api/nutrition/foods?q=Haferflocken").status_code == 409
 
     accepted = client.post(f"/api/household/invitations/{invitation_id}/accept")
     assert accepted.status_code == 200
@@ -101,7 +101,7 @@ def test_invitation_authorization_duplicate_and_owner_protection(client: TestCli
 
     client.post("/api/auth/logout")
     login(client, "member-account")
-    assert client.delete("/api/household/members/1").status_code == 404
+    assert client.delete("/api/household/members/1").status_code == 403
     assert client.delete("/api/household/leave").status_code == 404
     assert client.post(f"/api/household/invitations/{invitation.json()['id']}/accept").status_code == 200
     assert client.delete("/api/household/leave").status_code == 204
