@@ -41,6 +41,8 @@ def upgrade() -> None:
         columns = {row[1] for row in connection.execute(text("PRAGMA table_info(foods)"))}
         if "is_favorite" not in columns:
             connection.execute(text("ALTER TABLE foods ADD COLUMN is_favorite BOOLEAN NOT NULL DEFAULT 0"))
+        if "is_active" not in columns:
+            connection.execute(text("ALTER TABLE foods ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"))
         for statement in statements:
             connection.execute(text(statement))
 
