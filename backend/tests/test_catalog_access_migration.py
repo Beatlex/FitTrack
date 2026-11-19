@@ -1,11 +1,14 @@
-from sqlalchemy import create_engine, select, func
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base
 from app.household_models import Household, HouseholdMember
 from app.models import User
-from app.nutrition_models import Food, FoodAccess, MealTemplate, MealTemplateIngredient, RecipeAccess, RecipeIngredientAccess
+from app.nutrition_models import (
+    Food, FoodAccess, MealTemplate, MealTemplateIngredient,
+    RecipeAccess, RecipeIngredientAccess,
+)
 from app.migrate_catalog_access import upgrade
 
 
