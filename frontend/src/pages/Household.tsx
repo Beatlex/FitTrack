@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { CalendarDays, Check, Crown, Home, Plus, ShieldCheck, ShoppingBasket, UserMinus, Users, X } from "lucide-react";
+import { CalendarDays, Check, Crown, Home, LogOut, Plus, ShieldCheck, ShoppingBasket, UserMinus, Users, X } from "lucide-react";
 import { api } from "../services/api";
 
 type Member = { user_id: number; username: string; role: "owner" | "member"; joined_at: string };
