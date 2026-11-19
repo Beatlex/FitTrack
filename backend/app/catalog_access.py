@@ -131,7 +131,6 @@ def grant_new_recipe(db, recipe: MealTemplate, user_id: int, household_id: int |
         grant_recipe_to_household(db, recipe.id, household_id)
 
 
-
 def grant_household_catalog_to_member(db, user_id: int, household_id: int) -> None:
     """Grant a joining member all currently household-scoped catalog records."""
     food_ids = set(db.scalars(select(Food.id).where(
