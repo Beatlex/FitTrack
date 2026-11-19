@@ -20,15 +20,20 @@ from .nutrition_models import (
 )
 
 
+def _food_has_recipe_references(db: Session, food_id: int) -> bool:
+    return db.scalar(select(MealTemplateIngredient.id).where(
+        MealTemplateIngredient.food_id == food_id
+    ).limit(1)) is not None
+
+
 def _food_has_retained_references(db: Session, food_id: int) -> bool:
     reference_checks = (
-        select(MealTemplateIngredient.id).where(
-            MealTemplateIngredient.food_id == food_id
-        ),
         select(MealEntry.id).where(MealEntry.food_id == food_id),
         select(MealIngredient.id).where(MealIngredient.food_id == food_id),
     )
-    return any(db.scalar(statement.limit(1)) is not None for statement in reference_checks)
+    return _food_has_recipe_references(db, food_id) or any(
+        db.scalar(statement.limit(1)) is not None for statement in reference_checks
+    )
 
 
 def delete_account(db: Session, user: User) -> None:
@@ -127,7 +132,10 @@ def delete_account(db: Session, user: User) -> None:
         elif _food_has_retained_references(db, food.id):
             food.owner_id = None
             food.household_id = None
-            food.is_active = False
+            # Keep recipe dependencies active so retained recipes remain usable.
+            # Purely historical meal references may be archived safely.
+            if not _food_has_recipe_references(db, food.id):
+                food.is_active = False
         else:
             db.delete(food)
 
