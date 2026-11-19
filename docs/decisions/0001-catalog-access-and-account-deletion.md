@@ -14,6 +14,7 @@ The current catalog uses `household_id` as the visibility boundary. This is suff
 - Access is represented by normalized relational grant rows, not serialized ID arrays.
 - A grant is explicit per user. Household-wide sharing is implemented by granting access to current members; accepting an invitation grants access to eligible household-shared entries.
 - A per-user hidden/withdrawn state is separate from access. Hiding an item never deletes it for another user.
+- Recipe ingredient resolution is a contextual grant scoped to a recipe, food, and user. It does not make the food visible in the general food picker.
 - The API derives the acting user from the authenticated session and checks access on every read and mutation. Client-supplied user IDs are never authorization inputs.
 
 ### Delete semantics
@@ -44,6 +45,7 @@ The current catalog uses `household_id` as the visibility boundary. This is suff
 ## Security and integrity requirements
 
 - Unique constraints prevent duplicate grants and hidden markers.
+- Contextual ingredient grants never imply general catalog visibility.
 - All grant mutations are server-side and require household membership or explicit user action.
 - No polymorphic foreign key or JSON/array of user IDs is used.
 - Database foreign keys and transaction boundaries protect recipe-to-food dependencies.
