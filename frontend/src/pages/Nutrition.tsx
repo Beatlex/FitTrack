@@ -94,8 +94,8 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
       } else {
         const matches = await api<Food[]>(`/api/nutrition/foods?q=${encodeURIComponent(payload.name)}`);
         const existing = matches.find(item => item.name.trim().toLocaleLowerCase() === payload.name.toLocaleLowerCase());
-        if (existing && !window.confirm(`„${existing.name}“ ist bereits vorhanden. Soll dieser Eintrag aktualisiert werden?`)) return false;
         if (existing?.is_system) throw new Error("Dieses Lebensmittel ist ein geschützter Systemeintrag.");
+        if (existing && !window.confirm(`„${existing.name}“ ist bereits vorhanden. Soll dieser Eintrag aktualisiert werden?`)) return false;
         if (existing) await api(`/api/nutrition/foods/${existing.id}`, { method: "PUT", body: JSON.stringify(payload) });
         else await api("/api/nutrition/foods", { method: "POST", body: JSON.stringify(payload) });
       }
@@ -154,7 +154,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
     }, recipe.name + " wurde für heute eingetragen.");
   }
   async function deleteRecipe(recipe: Recipe) {
-    if (!window.confirm(`Gericht „${recipe.name}“ wirklich löschen? Bereits eingetragene Mahlzeiten bleiben erhalten.`)) return;
+    if (!window.confirm(`Gericht „${recipe.name}“ wirklich aus der gemeinsamen Sammlung für beide Benutzer löschen? Bereits eingetragene Mahlzeiten bleiben erhalten.`)) return;
     await runAction(async () => { await api(`/api/nutrition/recipes/${recipe.id}`, { method: "DELETE" }); await loadRecipes(); }, "Gericht gelöscht.");
   }
   async function deleteMeal(id: number) {
