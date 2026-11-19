@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from .database import Base, engine, get_db
+from .dependencies import current_user
 from .models import FoodEntry, Measurement, User
+from . import nutrition_models  # Register nutrition tables before create_all
 from .schemas import MeasurementCreate, MeasurementUpdate
 
 Base.metadata.create_all(bind=engine)
@@ -43,14 +45,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-def current_user(request: Request, db: Session = Depends(get_db)) -> User:
-    user_id = request.session.get("user_id")
-    user = db.get(User, user_id) if user_id else None
-    if user is None:
-        raise HTTPException(status_code=401, detail="Bitte anmelden.")
-    return user
 
 
 def measurement_to_dict(entry: Measurement) -> dict:
@@ -256,3 +250,7 @@ def dashboard(db: Session = Depends(get_db), user: User = Depends(current_user))
         "today": {field: sum(getattr(entry, field) for entry in entries) for field in macro_fields},
         "latest_measurement": measurement_to_dict(latest) if latest else None,
     }
+
+
+from .routers.nutrition import router as nutrition_router
+app.include_router(nutrition_router)

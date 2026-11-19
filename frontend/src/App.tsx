@@ -13,6 +13,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { api } from "./services/api";
 import BodyMeasurements from "./pages/BodyMeasurements";
+import Nutrition from "./pages/Nutrition";
 
 type User = { id: number; username: string };
 type DashboardData = {
@@ -20,6 +21,7 @@ type DashboardData = {
   today: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
   latest_measurement: { weight_kg: number | null } | null;
 };
+type NutritionOverview = { goals: { calories: number; protein_g: number; carbs_g: number; fat_g: number } | null; consumed: { calories: number; protein_g: number; carbs_g: number; fat_g: number }; remaining: { calories: number; protein_g: number; carbs_g: number; fat_g: number } | null; entries: unknown[] };
 type NavigationItem = { name: string; icon: LucideIcon };
 
 const navigation: NavigationItem[] = [
@@ -32,6 +34,7 @@ const navigation: NavigationItem[] = [
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [nutritionToday, setNutritionToday] = useState<NutritionOverview | null>(null);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -44,8 +47,14 @@ export default function App() {
   const [notice, setNotice] = useState("");
 
   async function refreshDashboard() {
-    const data = await api<DashboardData>("/api/dashboard");
+    const day = new Date();
+    const localDate = new Date(day.getTime() - day.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const [data, nutrition] = await Promise.all([
+      api<DashboardData>("/api/dashboard"),
+      api<NutritionOverview>(`/api/nutrition/day?day=${localDate}`),
+    ]);
     setDashboard(data);
+    setNutritionToday(nutrition);
   }
 
   useEffect(() => {
@@ -131,6 +140,7 @@ export default function App() {
       await api("/api/auth/logout", { method: "POST" });
       setUser(null);
       setDashboard(null);
+      setNutritionToday(null);
       setSection("Übersicht");
       setError("");
       setNotice("");
@@ -191,18 +201,29 @@ export default function App() {
         {error && <p className="error" role="alert">{error}</p>}
         {notice && <p className="success-message" role="status">{notice}</p>}
 
-        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Übersicht" ? (
+        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Ernährung" ? <Nutrition onDataChanged={refreshDashboard} /> : section === "Übersicht" ? (
           <>
             <section className="welcome">
               <div><small>SCHÖN, DASS DU DA BIST</small><h2>Bleib dran, {user.username}.</h2><p>Kleine Schritte. Sichtbare Fortschritte.</p></div>
               <Dumbbell size={48} />
             </section>
             <h3>Dein heutiger Überblick</h3>
-            <div className="metrics">
-              <Metric icon={Utensils} label="Kalorien" value={dashboard?.today.calories ?? 0} unit="kcal" />
-              <Metric icon={Activity} label="Protein" value={dashboard?.today.protein_g ?? 0} unit="g" />
-              <Metric icon={Apple} label="Kohlenhydrate" value={dashboard?.today.carbs_g ?? 0} unit="g" />
-              <Metric icon={Scale} label="Fett" value={dashboard?.today.fat_g ?? 0} unit="g" />
+            <div className="nutrition-totals dashboard-nutrition">
+              {([{key:"calories",label:"Kalorien",unit:"kcal"},{key:"protein_g",label:"Protein",unit:"g"},{key:"carbs_g",label:"Kohlenhydrate",unit:"g"},{key:"fat_g",label:"Fett",unit:"g"}] as const).map(({key,label,unit}) => {
+                const goal = nutritionToday?.goals?.[key] ?? null;
+                const consumed = nutritionToday?.consumed[key] ?? dashboard?.today[key] ?? 0;
+                const remaining = nutritionToday?.remaining?.[key] ?? null;
+                const progress = goal && goal > 0 ? Math.min(100, consumed / goal * 100) : 0;
+                if (key === "calories") return <article className="summary-card calorie-progress-card" key={key}>
+                  <div className="calorie-card-heading"><span>Kalorien</span><small>{goal == null ? "Tagesziel fehlt" : "Tagesfortschritt"}</small></div>
+                  <div className="calorie-numbers"><div><strong>{Math.round(consumed * 10) / 10}</strong><small>kcal aufgenommen</small></div>
+                    <div className="calorie-free">{remaining == null ? "Ziel festlegen" : remaining >= 0 ? <><strong>{Math.round(remaining * 10) / 10}</strong><small>kcal noch frei</small></> : <><strong>{Math.round(-remaining * 10) / 10}</strong><small>kcal über Ziel</small></>}</div></div>
+                  <div className="calorie-track" role="progressbar" aria-label="Kalorienverbrauch des Tages" aria-valuemin={0} aria-valuemax={goal ?? 0} aria-valuenow={Math.min(consumed, goal ?? consumed)}><span style={{width: progress + "%"}}/></div>
+                  <div className="calorie-track-labels"><span>0 kcal</span><span>Ziel: {goal == null ? "–" : goal + " kcal"}</span></div>
+                  {remaining != null && <p className={remaining < 0 ? "calorie-over" : "calorie-available"}>{remaining < 0 ? "Tagesziel überschritten" : "Noch " + Math.round(remaining * 10) / 10 + " kcal verfügbar"}</p>}
+                </article>;
+                return <article className="summary-card" key={key}><span>{label}</span><strong>{Math.round(consumed * 10) / 10} <small>{unit}</small></strong><div className="nutrition-track"><span style={{width: progress + "%"}}/></div><p>Tagesziel: {goal == null ? "nicht festgelegt" : goal + " " + unit}</p><em>{remaining == null ? "Ziel festlegen" : remaining >= 0 ? "Noch " + Math.round(remaining * 10) / 10 + " " + unit : Math.round(-remaining * 10) / 10 + " " + unit + " über Ziel"}</em></article>;
+              })}
             </div>
             <h3>Schnelle Einträge</h3>
             <div className="forms">
