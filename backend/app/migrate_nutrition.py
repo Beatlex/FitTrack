@@ -36,6 +36,9 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS ix_meal_templates_owner_id ON meal_templates(owner_id)",
         """CREATE TABLE IF NOT EXISTS meal_template_ingredients (id INTEGER PRIMARY KEY, template_id INTEGER NOT NULL REFERENCES meal_templates(id) ON DELETE CASCADE, food_id INTEGER NOT NULL REFERENCES foods(id), amount_g FLOAT NOT NULL)""",
         "CREATE INDEX IF NOT EXISTS ix_meal_template_ingredients_template_id ON meal_template_ingredients(template_id)",
+        """CREATE TABLE IF NOT EXISTS meal_template_favorites (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, template_id INTEGER NOT NULL REFERENCES meal_templates(id) ON DELETE CASCADE, CONSTRAINT uq_meal_template_favorite_user_template UNIQUE(user_id, template_id))""",
+        "CREATE INDEX IF NOT EXISTS ix_meal_template_favorites_user_id ON meal_template_favorites(user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_meal_template_favorites_template_id ON meal_template_favorites(template_id)",
     )
     with engine.begin() as connection:
         # Create the base tables first so this also works on a brand-new database.
