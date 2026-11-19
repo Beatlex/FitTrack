@@ -47,19 +47,18 @@ def upgrade(bind=engine) -> None:
         first_user = connection.execute(text("SELECT id FROM users ORDER BY id LIMIT 1")).scalar()
         if first_user is not None:
             household_id = connection.execute(text("SELECT id FROM households ORDER BY id LIMIT 1")).scalar()
-            if household_id is None:
+            created_household = household_id is None
+            if created_household:
                 connection.execute(text(
                     "INSERT INTO households(name, owner_id, created_at) VALUES ('Mein Haushalt', :owner, CURRENT_TIMESTAMP)"
                 ), {"owner": first_user})
                 household_id = connection.execute(text("SELECT last_insert_rowid()")).scalar()
-            user_rows = connection.execute(text("SELECT id FROM users ORDER BY id")).all()
-            for index, row in enumerate(user_rows):
-                connection.execute(text(
-                    "INSERT OR IGNORE INTO household_members(household_id, user_id, role, joined_at) "
-                    "VALUES (:household, :user, :role, CURRENT_TIMESTAMP)"
-                ), {"household": household_id, "user": row[0], "role": "owner" if index == 0 else "member"})
-            connection.execute(text("UPDATE households SET owner_id = :owner WHERE id = :household"),
-                               {"owner": first_user, "household": household_id})
+                user_rows = connection.execute(text("SELECT id FROM users ORDER BY id")).all()
+                for index, row in enumerate(user_rows):
+                    connection.execute(text(
+                        "INSERT OR IGNORE INTO household_members(household_id, user_id, role, joined_at) "
+                        "VALUES (:household, :user, :role, CURRENT_TIMESTAMP)"
+                    ), {"household": household_id, "user": row[0], "role": "owner" if index == 0 else "member"})
             connection.execute(text("UPDATE foods SET household_id = :household WHERE household_id IS NULL AND is_shared = 1"),
                                {"household": household_id})
             connection.execute(text("UPDATE meal_templates SET household_id = :household WHERE household_id IS NULL AND is_shared = 1"),
