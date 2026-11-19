@@ -131,6 +131,22 @@ def grant_new_recipe(db, recipe: MealTemplate, user_id: int, household_id: int |
         grant_recipe_to_household(db, recipe.id, household_id)
 
 
+
+def grant_household_catalog_to_member(db, user_id: int, household_id: int) -> None:
+    """Grant a joining member all currently household-scoped catalog records."""
+    food_ids = set(db.scalars(select(Food.id).where(
+        Food.household_id == household_id,
+        Food.is_system.is_(False),
+    )))
+    recipe_ids = set(db.scalars(select(MealTemplate.id).where(
+        MealTemplate.household_id == household_id,
+    )))
+    for food_id in food_ids:
+        _grant_food(db, food_id, {user_id})
+    for recipe_id in recipe_ids:
+        _grant_recipe(db, recipe_id, {user_id})
+
+
 def revoke_household_access_for_member(db, user_id: int, household_id: int) -> None:
     """Revoke household shares while retaining creator ownership and recipe dependencies."""
     household_food_ids = select(Food.id).where(
