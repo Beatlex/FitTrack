@@ -12,11 +12,11 @@ router = APIRouter(prefix="/api/nutrition", tags=["nutrition"])
 MACROS = ("calories", "protein_g", "carbs_g", "fat_g")
 
 def visible_foods_statement(user_id: int):
-    return select(Food).where(or_(Food.is_system.is_(True), Food.owner_id == user_id))
+    return select(Food).where(or_(Food.is_system.is_(True), Food.is_shared.is_(True), Food.owner_id == user_id))
 
 def food_dict(food: Food) -> dict:
     return {"id": food.id, "name": food.name, "brand": food.brand, "basis_g": food.basis_g,
-            **{key: getattr(food, key) for key in MACROS}, "is_system": food.is_system, "is_favorite": food.is_favorite}
+            **{key: getattr(food, key) for key in MACROS}, "is_system": food.is_system}
 
 def ingredient_dict(item: MealIngredient) -> dict:
     return {"id": item.id, "food_id": item.food_id, "food_name": item.food_name,
@@ -35,14 +35,14 @@ def search_foods(q: str = Query(default="", max_length=100), db: Session = Depen
     statement = statement.where(Food.is_active.is_(True))
     if q.strip():
         statement = statement.where(Food.name.ilike(f"%{q.strip()}%"))
-    return [food_dict(food) for food in db.scalars(statement.order_by(Food.is_favorite.desc(), Food.name).limit(100)).all()]
+    return [food_dict(food) for food in db.scalars(statement.order_by(Food.name).limit(100)).all()]
 
 @router.post("/foods", status_code=201)
 def create_food(data: FoodCreate, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    duplicate = db.scalar(select(Food).where(Food.owner_id == user.id, Food.is_active.is_(True), func.lower(Food.name) == data.name.lower()))
+    duplicate = db.scalar(select(Food).where(or_(Food.is_shared.is_(True), Food.owner_id == user.id), Food.is_active.is_(True), func.lower(Food.name) == data.name.lower()))
     if duplicate is not None:
         raise HTTPException(409, "Dieses Lebensmittel existiert bereits in deiner Sammlung.")
-    food = Food(owner_id=user.id, name=data.name, brand=data.brand, basis_g=data.basis_g,
+    food = Food(owner_id=user.id, is_shared=True, name=data.name, brand=data.brand, basis_g=data.basis_g,
         calories=data.calories, protein_g=data.protein_g, carbs_g=data.carbs_g, fat_g=data.fat_g)
     db.add(food)
     db.commit()
@@ -54,12 +54,12 @@ def create_food(data: FoodCreate, db: Session = Depends(get_db), user: User = De
 def update_food(food_id: int, data: FoodUpdate, db: Session = Depends(get_db),
                 user: User = Depends(current_user)):
     food = db.scalar(select(Food).where(
-        Food.id == food_id, Food.owner_id == user.id, Food.is_active.is_(True)
+        Food.id == food_id, or_(Food.is_shared.is_(True), Food.owner_id == user.id), Food.is_active.is_(True)
     ))
     if food is None:
         raise HTTPException(404, "Lebensmittel nicht gefunden.")
     duplicate = db.scalar(select(Food).where(
-        Food.owner_id == user.id, Food.is_active.is_(True),
+        or_(Food.is_shared.is_(True), Food.owner_id == user.id), Food.is_active.is_(True),
         func.lower(Food.name) == data.name.lower(), Food.id != food_id
     ))
     if duplicate is not None:
@@ -211,7 +211,7 @@ def recipe_dict(template: MealTemplate, db: Session, user_id: int) -> dict:
 @router.get("/recipes")
 def list_recipes(q: str = Query(default="", max_length=100), favorites_only: bool = False,
                  db: Session = Depends(get_db), user: User = Depends(current_user)):
-    statement = select(MealTemplate).where(MealTemplate.owner_id == user.id)
+    statement = select(MealTemplate).where(or_(MealTemplate.is_shared.is_(True), MealTemplate.owner_id == user.id))
     if q.strip():
         statement = statement.where(MealTemplate.name.ilike(f"%{q.strip()}%"))
     if favorites_only:
@@ -263,12 +263,12 @@ def create_recipe(data: RecipeCreate, db: Session = Depends(get_db),
     if len(by_id) != len(ids):
         raise HTTPException(404, "Mindestens ein aktives Lebensmittel wurde nicht gefunden.")
     existing = db.scalar(select(MealTemplate).where(
-        MealTemplate.owner_id == user.id,
+        or_(MealTemplate.is_shared.is_(True), MealTemplate.owner_id == user.id),
         func.lower(MealTemplate.name) == data.name.lower(),
     ))
     if existing is not None:
         raise HTTPException(409, "Ein Gericht mit diesem Namen existiert bereits.")
-    template = MealTemplate(owner_id=user.id, name=data.name, meal_type=data.meal_type)
+    template = MealTemplate(owner_id=user.id, is_shared=True, name=data.name, meal_type=data.meal_type)
     db.add(template)
     db.flush()
     for item in data.ingredients:
@@ -284,7 +284,7 @@ def create_recipe(data: RecipeCreate, db: Session = Depends(get_db),
 def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_db),
                   user: User = Depends(current_user)):
     template = db.scalar(select(MealTemplate).where(
-        MealTemplate.id == recipe_id, MealTemplate.owner_id == user.id
+        MealTemplate.id == recipe_id, or_(MealTemplate.is_shared.is_(True), MealTemplate.owner_id == user.id)
     ))
     if template is None:
         raise HTTPException(404, "Gericht nicht gefunden.")
