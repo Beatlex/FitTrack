@@ -90,7 +90,6 @@ class MealTemplateFavorite(Base):
     template_id: Mapped[int] = mapped_column(ForeignKey("meal_templates.id", ondelete="CASCADE"), nullable=False, index=True)
 
 
-
 class FoodAccess(Base):
     """Explicit per-user read/write grant for a catalog food."""
     __tablename__ = "food_access"
