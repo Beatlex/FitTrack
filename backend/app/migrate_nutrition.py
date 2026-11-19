@@ -32,8 +32,15 @@ def upgrade() -> None:
           food_id INTEGER NULL REFERENCES foods(id), food_name VARCHAR(160) NOT NULL, amount_g FLOAT NOT NULL,
           calories FLOAT NOT NULL, protein_g FLOAT NOT NULL, carbs_g FLOAT NOT NULL, fat_g FLOAT NOT NULL)""",
         "CREATE INDEX IF NOT EXISTS ix_meal_ingredients_meal_entry_id ON meal_ingredients(meal_entry_id)",
+        """CREATE TABLE IF NOT EXISTS meal_templates (id INTEGER PRIMARY KEY, owner_id INTEGER NOT NULL REFERENCES users(id), name VARCHAR(160) NOT NULL, meal_type VARCHAR(20) NOT NULL, is_favorite BOOLEAN NOT NULL DEFAULT 0, created_at DATETIME NOT NULL)""",
+        "CREATE INDEX IF NOT EXISTS ix_meal_templates_owner_id ON meal_templates(owner_id)",
+        """CREATE TABLE IF NOT EXISTS meal_template_ingredients (id INTEGER PRIMARY KEY, template_id INTEGER NOT NULL REFERENCES meal_templates(id) ON DELETE CASCADE, food_id INTEGER NOT NULL REFERENCES foods(id), amount_g FLOAT NOT NULL)""",
+        "CREATE INDEX IF NOT EXISTS ix_meal_template_ingredients_template_id ON meal_template_ingredients(template_id)",
     )
     with engine.begin() as connection:
+        columns = {row[1] for row in connection.execute(text("PRAGMA table_info(foods)"))}
+        if "is_favorite" not in columns:
+            connection.execute(text("ALTER TABLE foods ADD COLUMN is_favorite BOOLEAN NOT NULL DEFAULT 0"))
         for statement in statements:
             connection.execute(text(statement))
 
