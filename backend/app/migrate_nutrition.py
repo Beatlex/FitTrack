@@ -57,6 +57,11 @@ def upgrade(bind=engine) -> None:
         # Existing catalogue items and recipes become household-shared.
         connection.execute(text("UPDATE foods SET is_shared = 1"))
         connection.execute(text("UPDATE meal_templates SET is_shared = 1"))
+        if "is_favorite" in template_columns:
+            connection.execute(text(
+                "INSERT OR IGNORE INTO meal_template_favorites (user_id, template_id) "
+                "SELECT owner_id, id FROM meal_templates WHERE is_favorite = 1"
+            ))
 
 if __name__ == "__main__":
     upgrade()
