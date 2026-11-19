@@ -18,6 +18,11 @@ from .household_models import Household, HouseholdMember
 from .schemas import MeasurementCreate, MeasurementUpdate
 
 Base.metadata.create_all(bind=engine)
+
+# Additive catalog ACL migration; safe to re-run during application startup.
+from .migrate_catalog_access import upgrade as migrate_catalog_access
+
+migrate_catalog_access()
 password_hasher = PasswordHash.recommended()
 
 is_production = os.getenv("APP_ENV", "development").lower() == "production"
