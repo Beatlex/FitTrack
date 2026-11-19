@@ -6,6 +6,7 @@ import {
   CircleUserRound,
   Dumbbell,
   LogOut,
+  House,
   Plus,
   Scale,
   Utensils,
@@ -14,6 +15,7 @@ import type { LucideIcon } from "lucide-react";
 import { api } from "./services/api";
 import BodyMeasurements from "./pages/BodyMeasurements";
 import Nutrition from "./pages/Nutrition";
+import HouseholdPage from "./pages/Household";
 
 type User = { id: number; username: string };
 type DashboardData = {
@@ -29,6 +31,7 @@ const navigation: NavigationItem[] = [
   { name: "Körperwerte", icon: Scale },
   { name: "Ernährung", icon: Apple },
   { name: "Statistiken", icon: Activity },
+  { name: "Haushalt", icon: House },
 ];
 
 export default function App() {
@@ -176,7 +179,7 @@ export default function App() {
         {error && <p className="error" role="alert">{error}</p>}
         {notice && <p className="success-message" role="status">{notice}</p>}
 
-        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Ernährung" ? <Nutrition onDataChanged={refreshDashboard} /> : section === "Übersicht" ? (
+        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Ernährung" ? <Nutrition onDataChanged={refreshDashboard} /> : section === "Haushalt" ? <HouseholdPage /> : section === "Übersicht" ? (
           <>
             <section className="welcome">
               <div><small>SCHÖN, DASS DU DA BIST</small><h2>Bleib dran, {user.username}.</h2><p>Kleine Schritte. Sichtbare Fortschritte.</p></div>
