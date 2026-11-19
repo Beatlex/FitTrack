@@ -48,7 +48,7 @@ npm run dev
 ```
 Öffne http://localhost:5173. Die API-Dokumentation findest du unter http://127.0.0.1:8000/docs. Der Vite-Entwicklungsserver bindet standardmäßig nur an localhost. Für einen vorübergehenden Test in einem vertrauenswürdigen Heimnetz kannst du ihn mit `npm run dev -- --host 0.0.0.0` freigeben; wegen bekannter Schwachstellen in einem transitiven Entwicklungswerkzeug (picomatch) nicht in öffentlichen oder nicht vertrauenswürdigen Netzen verwenden.
 
-Beim ersten Start können maximal zwei Konten angelegt werden. Die SQLite-Datei wird lokal unter `data/fittrack.db` erzeugt und ist absichtlich von Git ausgeschlossen.
+Es können beliebig viele Benutzerkonten angelegt werden. Jeder Benutzer kann genau einem Haushalt angehören oder zunächst ohne Haushalt bleiben. Die SQLite-Datei wird lokal unter `data/fittrack.db` erzeugt und ist absichtlich von Git ausgeschlossen.
 
 ## Linux (späterer Betrieb)
 Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debian/Ubuntu werden die virtuelle Umgebung mit `python3 -m venv .venv`, die Abhängigkeiten mit `pip install -r requirements.txt` und das Frontend mit `npm install` installiert. Für den Produktivbetrieb sind ein starker `SESSION_SECRET`, `APP_ENV=production`, `COOKIE_SECURE=true`, HTTPS über einen Reverse-Proxy, ein nicht privilegierter Systembenutzer und regelmäßige Backups erforderlich.
@@ -59,18 +59,18 @@ Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debi
 - Passwörter werden mit Argon2 gehasht; Session-Cookies sind HttpOnly und SameSite=Lax.
 - Der lokale Entwicklungsschlüssel ist ausschließlich für lokale Tests gedacht. Produktionsstarts ohne einen mindestens 32 Zeichen langen `SESSION_SECRET` und ohne `COOKIE_SECURE=true` werden abgebrochen.
 - Haushaltsmitgliedschaften und Einladungen werden serverseitig geprüft. Lebensmittel und Gerichte gehören zu einer konkreten Haushalt-ID; Einladungen werden erst nach ausdrücklicher Annahme wirksam.
-- Der Haushaltsinhaber kann offene Einladungen zurückziehen und Mitglieder entfernen. Mitglieder können den Haushalt verlassen; ein Inhaberwechsel ist noch nicht implementiert.
+- Der Ersteller bleibt dauerhaft Admin. Er kann offene Einladungen zurückziehen und Mitglieder entfernen. Mitglieder können den Haushalt verlassen; der Admin kann den Haushalt auflösen, sobald er alleiniger Teilnehmer ist. Bei der Auflösung bleiben Lebensmittel und Gerichte als private Einträge ihrer Ersteller erhalten.
 - Der Household-Migrationsschritt ordnet bestehende Konten und bisher gemeinsam sichtbare Lebensmittel/Gerichte einem gemeinsamen Haushalt zu. Migrationen vor dem ersten App-Start ausführen (siehe Befehle oben).
 - Tagesziele, Körpermessungen und protokollierte Mahlzeiten bleiben strikt benutzerbezogen. Nährwert-Snapshots bereits protokollierter Mahlzeiten werden durch spätere Änderungen am Lebensmittel oder Rezept nicht verändert.
 
 ## Aktueller Funktionsumfang
-- Anmeldung für zwei getrennte Benutzer
+- Anmeldung für beliebig viele getrennte Benutzer
 - Dark-Dashboard mit Tagesmakros
 - Körperwerte: Gewicht, Bauch, Brust, Hüfte, Arm und Oberschenkel
 - Messdatum/-uhrzeit, Verlauf, Zeitraumfilter, Gewichtsdiagramm, Bearbeiten und Löschen
 - Gemeinsamer Lebensmittelkatalog mit Suche, Anlegen, Bearbeiten und sicherem Archivieren
 - Gemeinsame Rezeptbibliothek mit Zutaten, Mengen, Bearbeiten und Löschen
-- Haushalts-Tab mit Mitgliederübersicht, Einladungen per bestehendem Benutzernamen, Annahme/Ablehnung und Entfernen/Verlassen
+- Haushalts-Tab mit selbstständiger Erstellung, Mitgliederübersicht, Einladungen per bestehendem Benutzernamen, Annahme/Ablehnung und Entfernen/Verlassen
 - Persönliche Rezeptfavoriten sowie individuelle Tagesziele und private Mahlzeitenprotokolle
 
 ## Geplante Ausbaustufen
