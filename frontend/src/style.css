@@ -216,3 +216,10 @@
 .leave-household h2 svg{color:#b49cff}
 .leave-household p{margin:0;max-width:650px}
 @media(max-width:700px){.household-hero{align-items:flex-start;flex-wrap:wrap;padding:18px}.household-role{margin-left:58px}.household-future-grid{grid-template-columns:1fr}.household-actions{width:100%;padding-left:48px}.pending-row{flex-wrap:wrap}.pending-row small{order:2;width:100%}.leave-household{align-items:flex-start;flex-direction:column}.invite-input-row{align-items:stretch;flex-direction:column}.invite-input-row .primary{width:100%;justify-content:center}}
+
+.dashboard-weight-trend{margin:-12px 0 30px;padding:20px 22px}
+.dashboard-weight-current{color:#c5b7ff;font-size:18px;font-variant-numeric:tabular-nums}
+.dashboard-weight-chart{width:100%;overflow:hidden}
+.dashboard-weight-chart svg{display:block;width:100%;height:auto;min-height:125px}
+.dashboard-weight-empty{min-height:90px;display:flex;align-items:center;justify-content:center;text-align:center;color:#929bad;font-size:12px}
+@media(max-width:600px){.dashboard-weight-trend{padding:16px;margin:-8px 0 24px}.dashboard-weight-chart svg{min-height:100px}}
