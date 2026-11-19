@@ -90,13 +90,7 @@ def register(data: dict, db: Session = Depends(get_db)):
     user = User(username=username, password_hash=password_hasher.hash(password))
     db.add(user)
     db.flush()
-    # The first account creates the initial household. Additional accounts join
-    # only after accepting an explicit invitation.
-    if db.scalar(select(Household.id).limit(1)) is None:
-        household = Household(name="Mein Haushalt", owner_id=user.id)
-        db.add(household)
-        db.flush()
-        db.add(HouseholdMember(household_id=household.id, user_id=user.id, role="owner"))
+    # Household membership is opt-in: each account can create or join one later.
     db.commit()
     db.refresh(user)
     return {"id": user.id, "username": user.username}
