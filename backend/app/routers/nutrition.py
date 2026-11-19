@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import User
 from ..nutrition_models import Food, MealEntry, MealIngredient, MealTemplate, MealTemplateIngredient, NutritionGoal
-from ..nutrition_schemas import FavoriteUpdate, FoodCreate, GoalUpdate, MealCreate, RecipeCreate
+from ..nutrition_schemas import FavoriteUpdate, FoodCreate, FoodUpdate, GoalUpdate, MealCreate, RecipeCreate, RecipeUpdate
 from ..dependencies import current_user
 
 router = APIRouter(prefix="/api/nutrition", tags=["nutrition"])
@@ -32,13 +32,14 @@ def meal_dict(meal: MealEntry, ingredients: list[MealIngredient] | None = None) 
 def search_foods(q: str = Query(default="", max_length=100), db: Session = Depends(get_db),
                  user: User = Depends(current_user)):
     statement = visible_foods_statement(user.id)
+    statement = statement.where(Food.is_active.is_(True))
     if q.strip():
         statement = statement.where(Food.name.ilike(f"%{q.strip()}%"))
     return [food_dict(food) for food in db.scalars(statement.order_by(Food.is_favorite.desc(), Food.name).limit(100)).all()]
 
 @router.post("/foods", status_code=201)
 def create_food(data: FoodCreate, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    duplicate = db.scalar(select(Food).where(Food.owner_id == user.id, func.lower(Food.name) == data.name.lower()))
+    duplicate = db.scalar(select(Food).where(Food.owner_id == user.id, Food.is_active.is_(True), func.lower(Food.name) == data.name.lower()))
     if duplicate is not None:
         raise HTTPException(409, "Dieses Lebensmittel existiert bereits in deiner Sammlung.")
     food = Food(owner_id=user.id, name=data.name, brand=data.brand, basis_g=data.basis_g,
@@ -47,6 +48,42 @@ def create_food(data: FoodCreate, db: Session = Depends(get_db), user: User = De
     db.commit()
     db.refresh(food)
     return food_dict(food)
+
+
+@router.put("/foods/{food_id}")
+def update_food(food_id: int, data: FoodUpdate, db: Session = Depends(get_db),
+                user: User = Depends(current_user)):
+    food = db.scalar(select(Food).where(
+        Food.id == food_id, Food.owner_id == user.id, Food.is_active.is_(True)
+    ))
+    if food is None:
+        raise HTTPException(404, "Lebensmittel nicht gefunden.")
+    duplicate = db.scalar(select(Food).where(
+        Food.owner_id == user.id, Food.is_active.is_(True),
+        func.lower(Food.name) == data.name.lower(), Food.id != food_id
+    ))
+    if duplicate is not None:
+        raise HTTPException(409, "Ein anderes Lebensmittel mit diesem Namen existiert bereits.")
+    for key, value in data.model_dump().items():
+        setattr(food, key, value)
+    db.commit()
+    db.refresh(food)
+    return food_dict(food)
+
+
+@router.delete("/foods/{food_id}", status_code=200)
+def archive_food(food_id: int, db: Session = Depends(get_db),
+                 user: User = Depends(current_user)):
+    food = db.scalar(select(Food).where(
+        Food.id == food_id, Food.owner_id == user.id, Food.is_active.is_(True)
+    ))
+    if food is None:
+        raise HTTPException(404, "Lebensmittel nicht gefunden.")
+    # Soft archive preserves foreign keys and historical meal snapshots.
+    food.is_active = False
+    food.is_favorite = False
+    db.commit()
+    return {"message": "Lebensmittel archiviert."}
 
 @router.get("/goals")
 def get_goals(db: Session = Depends(get_db), user: User = Depends(current_user)):
@@ -219,10 +256,12 @@ def list_recipes(q: str = Query(default="", max_length=100), favorites_only: boo
 def create_recipe(data: RecipeCreate, db: Session = Depends(get_db),
                   user: User = Depends(current_user)):
     ids = {item.food_id for item in data.ingredients}
-    foods = db.scalars(visible_foods_statement(user.id).where(Food.id.in_(ids))).all()
+    foods = db.scalars(visible_foods_statement(user.id).where(
+        Food.id.in_(ids), Food.is_active.is_(True)
+    )).all()
     by_id = {food.id: food for food in foods}
     if len(by_id) != len(ids):
-        raise HTTPException(404, "Mindestens ein Lebensmittel wurde nicht gefunden.")
+        raise HTTPException(404, "Mindestens ein aktives Lebensmittel wurde nicht gefunden.")
     existing = db.scalar(select(MealTemplate).where(
         MealTemplate.owner_id == user.id,
         func.lower(MealTemplate.name) == data.name.lower(),
@@ -239,6 +278,41 @@ def create_recipe(data: RecipeCreate, db: Session = Depends(get_db),
     db.refresh(template)
     return recipe_dict(template, db, user.id)
 
+
+
+@router.put("/recipes/{recipe_id}")
+def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_db),
+                  user: User = Depends(current_user)):
+    template = db.scalar(select(MealTemplate).where(
+        MealTemplate.id == recipe_id, MealTemplate.owner_id == user.id
+    ))
+    if template is None:
+        raise HTTPException(404, "Gericht nicht gefunden.")
+    duplicate = db.scalar(select(MealTemplate).where(
+        MealTemplate.owner_id == user.id,
+        func.lower(MealTemplate.name) == data.name.lower(),
+        MealTemplate.id != recipe_id
+    ))
+    if duplicate is not None:
+        raise HTTPException(409, "Ein anderes Gericht mit diesem Namen existiert bereits.")
+    ids = {item.food_id for item in data.ingredients}
+    foods = db.scalars(visible_foods_statement(user.id).where(
+        Food.id.in_(ids), Food.is_active.is_(True)
+    )).all()
+    if len({food.id for food in foods}) != len(ids):
+        raise HTTPException(404, "Mindestens ein aktives Lebensmittel wurde nicht gefunden.")
+    template.name = data.name
+    template.meal_type = data.meal_type
+    db.execute(delete(MealTemplateIngredient).where(
+        MealTemplateIngredient.template_id == template.id
+    ))
+    for item in data.ingredients:
+        db.add(MealTemplateIngredient(
+            template_id=template.id, food_id=item.food_id, amount_g=item.amount_g
+        ))
+    db.commit()
+    db.refresh(template)
+    return recipe_dict(template, db, user.id)
 
 @router.patch("/recipes/{recipe_id}/favorite")
 def set_recipe_favorite(recipe_id: int, data: FavoriteUpdate, db: Session = Depends(get_db),
