@@ -2,7 +2,7 @@ from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -14,6 +14,9 @@ from app import household_models, nutrition_models  # noqa: F401
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    @event.listens_for(engine, "connect")
+    def enable_foreign_keys(connection, _record):
+        connection.execute("PRAGMA foreign_keys=ON")
     testing = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     Base.metadata.create_all(bind=engine)
 
@@ -129,3 +132,50 @@ def test_invitee_can_decline_and_owner_can_revoke_pending_invitation(client: Tes
     login(client, "invite-owner")
     second = client.post("/api/household/invitations", json={"username": "invite-target"}).json()
     assert client.delete(f"/api/household/invitations/{second['id']}").status_code == 204
+
+
+def test_any_user_can_create_named_household_and_invite_multiple_members(client: TestClient) -> None:
+    register(client, "first-admin")
+    register(client, "second-member")
+    register(client, "third-member")
+    register(client, "fourth-pending")
+    login(client, "second-member")
+
+    created = client.post("/api/household", json={"name": "WG Sonnenschein"})
+    assert created.status_code == 201
+    assert created.json()["name"] == "WG Sonnenschein"
+    assert created.json()["current_user_role"] == "owner"
+    assert len(created.json()["members"]) == 1
+    assert client.post("/api/household", json={"name": "Zweiter Haushalt"}).status_code == 409
+
+    assert client.post("/api/household/invitations", json={"username": "first-admin"}).status_code == 201
+    assert client.post("/api/household/invitations", json={"username": "third-member"}).status_code == 201
+    assert client.post("/api/household/invitations", json={"username": "fourth-pending"}).status_code == 201
+    assert len(client.get("/api/household").json()["pending_invitations"]) == 3
+
+    client.post("/api/auth/logout")
+    login(client, "third-member")
+    incoming = client.get("/api/household").json()["invitations"]
+    assert len(incoming) == 1
+    assert client.post("/api/household/invitations/" + str(incoming[0]["id"]) + "/accept").status_code == 200
+
+    client.post("/api/auth/logout")
+    login(client, "first-admin")
+    incoming = client.get("/api/household").json()["invitations"]
+    assert len(incoming) == 1
+    assert client.post("/api/household/invitations/" + str(incoming[0]["id"]) + "/accept").status_code == 200
+
+    joined = client.get("/api/household").json()["household"]
+    assert joined["current_user_role"] == "owner"
+    assert len(joined["members"]) == 3
+    assert client.delete("/api/household/leave").status_code == 409
+
+    # Remove the other two members, then dissolve the household as its creator.
+    for member in joined["members"]:
+        if member["user_id"] != joined["owner_id"]:
+            assert client.delete("/api/household/members/" + str(member["user_id"])).status_code == 204
+    assert len(client.get("/api/household").json()["household"]["members"]) == 1
+    assert client.delete("/api/household/leave").status_code == 204
+    after_delete = client.get("/api/household").json()
+    assert after_delete["household"] is None
+    assert after_delete["invitations"] == []
