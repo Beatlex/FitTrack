@@ -13,6 +13,8 @@ from .database import Base, engine, get_db
 from .dependencies import current_user
 from .models import FoodEntry, Measurement, User
 from . import nutrition_models  # Register nutrition tables before create_all
+from . import household_models  # Register household tables before create_all
+from .household_models import Household, HouseholdMember
 from .schemas import MeasurementCreate, MeasurementUpdate
 
 Base.metadata.create_all(bind=engine)
@@ -87,6 +89,14 @@ def register(data: dict, db: Session = Depends(get_db)):
         raise HTTPException(403, "Die zwei Konten sind bereits eingerichtet.")
     user = User(username=username, password_hash=password_hasher.hash(password))
     db.add(user)
+    db.flush()
+    # The first account creates the initial household. Additional accounts join
+    # only after accepting an explicit invitation.
+    if db.scalar(select(Household.id).limit(1)) is None:
+        household = Household(name="Mein Haushalt", owner_id=user.id)
+        db.add(household)
+        db.flush()
+        db.add(HouseholdMember(household_id=household.id, user_id=user.id, role="owner"))
     db.commit()
     db.refresh(user)
     return {"id": user.id, "username": user.username}
@@ -253,4 +263,6 @@ def dashboard(db: Session = Depends(get_db), user: User = Depends(current_user))
 
 
 from .routers.nutrition import router as nutrition_router
+from .routers.household import router as household_router
 app.include_router(nutrition_router)
+app.include_router(household_router)
