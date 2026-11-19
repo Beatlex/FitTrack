@@ -3,7 +3,7 @@ import { ArrowLeft, Heart, Plus, Save, Search, Trash2, Utensils } from "lucide-r
 import { api } from "../services/api";
 
 type Values = { calories: number; protein_g: number; carbs_g: number; fat_g: number };
-type Food = Values & { id: number; name: string; basis_g: number; brand: string | null; is_favorite: boolean };
+type Food = Values & { id: number; name: string; basis_g: number; brand: string | null; is_favorite: boolean; is_system: boolean };
 type Ingredient = Values & { id?: number; food_id: number; food_name: string; amount_g: number };
 type Entry = Values & { id: number; food_name: string; amount_g: number; meal_type: string; ingredients: Ingredient[] };
 type Daily = { goals: Values | null; consumed: Values; remaining: Values | null; entries: Entry[] };
