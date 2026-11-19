@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import "./CatalogAccessSection.css";
 import { ChevronDown, Search, ShieldCheck } from "lucide-react";
 
 export type HouseholdMember = {
