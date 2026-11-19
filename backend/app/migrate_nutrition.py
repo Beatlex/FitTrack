@@ -38,13 +38,14 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS ix_meal_template_ingredients_template_id ON meal_template_ingredients(template_id)",
     )
     with engine.begin() as connection:
+        # Create the base tables first so this also works on a brand-new database.
+        for statement in statements:
+            connection.execute(text(statement))
         columns = {row[1] for row in connection.execute(text("PRAGMA table_info(foods)"))}
         if "is_favorite" not in columns:
             connection.execute(text("ALTER TABLE foods ADD COLUMN is_favorite BOOLEAN NOT NULL DEFAULT 0"))
         if "is_active" not in columns:
             connection.execute(text("ALTER TABLE foods ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"))
-        for statement in statements:
-            connection.execute(text(statement))
 
 if __name__ == "__main__":
     upgrade()
