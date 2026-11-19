@@ -314,3 +314,78 @@ def test_shared_catalog_duplicate_detection_and_system_food_protection(client: T
         "protein_g": 4, "carbs_g": 5, "fat_g": 3,
     })
     assert duplicate.status_code == 409
+
+
+def test_personal_hide_restore_and_recipe_dependency_access_are_separate(client: TestClient) -> None:
+    login(client, "acl-hide-owner")
+    food = client.post("/api/nutrition/foods", json={
+        "name": "ACL Hafer", "basis_g": 100, "calories": 370,
+        "protein_g": 13, "carbs_g": 59, "fat_g": 7,
+    }).json()
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "ACL Frühstück", "meal_type": "breakfast",
+        "ingredients": [{"food_id": food["id"], "amount_g": 50}],
+    }).json()
+
+    invite_and_switch_to_second_user(client, "acl-hide-member")
+    assert len(client.get("/api/nutrition/foods?q=ACL").json()) == 1
+    assert len(client.get("/api/nutrition/recipes?q=ACL").json()) == 1
+
+    assert client.post(f"/api/nutrition/foods/{food['id']}/hide").status_code == 204
+    assert client.get("/api/nutrition/foods?q=ACL").json() == []
+    visible_recipe = client.get("/api/nutrition/recipes?q=ACL").json()
+    assert len(visible_recipe) == 1
+    assert visible_recipe[0]["ingredients"][0]["food_name"] == "ACL Hafer"
+    assert client.post(f"/api/nutrition/recipes/{recipe['id']}/log").status_code == 201
+
+    assert client.delete(f"/api/nutrition/foods/{food['id']}/hide").status_code == 204
+    assert len(client.get("/api/nutrition/foods?q=ACL").json()) == 1
+    assert client.post(f"/api/nutrition/recipes/{recipe['id']}/hide").status_code == 204
+    assert client.get("/api/nutrition/recipes?q=ACL").json() == []
+    assert client.delete(f"/api/nutrition/recipes/{recipe['id']}/hide").status_code == 204
+    assert len(client.get("/api/nutrition/recipes?q=ACL").json()) == 1
+
+    client.post("/api/auth/logout")
+    assert client.post("/api/auth/login", json={
+        "username": "acl-hide-owner", "password": "correct-horse-battery-staple",
+    }).status_code == 200
+    assert len(client.get("/api/nutrition/foods?q=ACL").json()) == 1
+    assert len(client.get("/api/nutrition/recipes?q=ACL").json()) == 1
+
+
+def test_departing_food_owner_loses_picker_access_but_existing_recipe_dependency_survives(client: TestClient) -> None:
+    login(client, "acl-dependency-owner")
+    invite_and_switch_to_second_user(client, "acl-dependency-member")
+    member_food = client.post("/api/nutrition/foods", json={
+        "name": "Mitglieds-Zutat", "basis_g": 100, "calories": 80,
+        "protein_g": 4, "carbs_g": 10, "fat_g": 2,
+    }).json()
+
+    client.post("/api/auth/logout")
+    assert client.post("/api/auth/login", json={
+        "username": "acl-dependency-owner", "password": "correct-horse-battery-staple",
+    }).status_code == 200
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Rezept mit Mitgliederzutat", "meal_type": "lunch",
+        "ingredients": [{"food_id": member_food["id"], "amount_g": 100}],
+    })
+    assert recipe.status_code == 201
+
+    client.post("/api/auth/logout")
+    assert client.post("/api/auth/login", json={
+        "username": "acl-dependency-member", "password": "correct-horse-battery-staple",
+    }).status_code == 200
+    assert client.delete("/api/household/leave").status_code == 204
+
+    client.post("/api/auth/logout")
+    assert client.post("/api/auth/login", json={
+        "username": "acl-dependency-owner", "password": "correct-horse-battery-staple",
+    }).status_code == 200
+    assert client.get("/api/nutrition/foods?q=Mitglieds-Zutat").json() == []
+    remaining_recipe = client.get("/api/nutrition/recipes?q=Mitgliederzutat")
+    assert remaining_recipe.status_code == 200
+    assert len(remaining_recipe.json()) == 1
+    assert remaining_recipe.json()[0]["ingredients"][0]["food_name"] == "Mitglieds-Zutat"
+    logged = client.post(f"/api/nutrition/recipes/{recipe.json()['id']}/log")
+    assert logged.status_code == 201
+    assert logged.json()["calories"] == 80
