@@ -39,8 +39,9 @@ The current catalog uses `household_id` as the visibility boundary. This is suff
 2. **Complete:** Catalog reads, writes, recipe ingredient resolution, meal logging, and household lifecycle now use the grant model.
 3. **Complete:** Personal hide/restore endpoints and safe removal behavior for shared records.
 4. **Complete:** Password- and username-confirmed account deletion with household-owner transfer, shared recipe ownership transfer, personal-data cleanup, and dependency retention.
-5. **Remaining:** Frontend controls for hide/restore and account deletion; dedicated per-item grant/revoke controls; audit metadata and simultaneous-edit conflict handling.
-6. **Follow-up:** Timezone standardization and database backup/migration operations.
+5. **Complete:** Frontend controls for personal food/recipe hide and restore.
+6. **Remaining:** Frontend account-deletion flow; dedicated per-item grant/revoke controls; audit metadata and simultaneous-edit conflict handling.
+7. **Follow-up:** Timezone standardization and database backup/migration operations.
 
 ## Security and integrity requirements
 
