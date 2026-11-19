@@ -425,14 +425,19 @@ def test_catalog_permissions_cannot_revoke_creator_or_owner_access(client: TestC
     client.post("/api/auth/logout")
     login(client, "acl-protected-member")
     assert client.post(f"/api/household/invitations/{invitation['id']}/accept").status_code == 200
-    member_id = client.get("/api/household").json()["household"]["current_user_id"]
+    member_household = client.get("/api/household").json()["household"]
+    member_id = member_household["current_user_id"]
+    member_food = client.post("/api/nutrition/foods", json={
+        "name": "Member Creator Protected Food", "basis_g": 100, "calories": 70,
+        "protein_g": 3, "carbs_g": 8, "fat_g": 1,
+    }).json()
 
     client.post("/api/auth/logout")
     login(client, "acl-protected-owner")
     assert client.delete(
-        f"/api/household/catalog-access/foods/{food['id']}/members/{member_id}"
+        f"/api/household/catalog-access/foods/{member_food['id']}/members/{member_id}"
     ).status_code == 409
     assert client.delete(
-        f"/api/household/catalog-access/foods/{food['id']}/members/1"
+        f"/api/household/catalog-access/foods/{food['id']}/members/{member_household['owner_id']}"
     ).status_code == 409
     assert client.get("/api/nutrition/foods?q=Creator%20Protected").status_code == 200
