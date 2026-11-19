@@ -131,3 +131,70 @@ def test_recipe_rejects_foreign_ingredient_and_too_many_ingredients(client: Test
         "meal_name": "Too many ingredients", "meal_type": "breakfast", "ingredients": too_many,
     })
     assert invalid.status_code == 422
+
+
+def test_saved_recipe_favorites_and_logging_update_daily_totals(client: TestClient) -> None:
+    login(client, "recipe-library")
+    oats = client.post("/api/nutrition/foods", json={
+        "name": "Haferflocken", "basis_g": 100, "calories": 370,
+        "protein_g": 13, "carbs_g": 59, "fat_g": 7,
+    })
+    assert oats.status_code == 201
+    milk = client.post("/api/nutrition/foods", json={
+        "name": "Milch", "basis_g": 100, "calories": 64,
+        "protein_g": 3.4, "carbs_g": 4.8, "fat_g": 3.5,
+    })
+    assert milk.status_code == 201
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Overnight Oats", "meal_type": "breakfast",
+        "ingredients": [
+            {"food_id": oats.json()["id"], "amount_g": 50},
+            {"food_id": milk.json()["id"], "amount_g": 150},
+        ],
+    })
+    assert recipe.status_code == 201
+    assert recipe.json()["calories"] == 281
+    assert len(recipe.json()["ingredients"]) == 2
+
+    favorite = client.patch(f"/api/nutrition/recipes/{recipe.json()['id']}/favorite",
+                            json={"is_favorite": True})
+    assert favorite.status_code == 200
+    assert favorite.json()["is_favorite"] is True
+    assert len(client.get("/api/nutrition/recipes?favorites_only=true").json()) == 1
+
+    logged = client.post(f"/api/nutrition/recipes/{recipe.json()['id']}/log")
+    assert logged.status_code == 201
+    assert logged.json()["food_name"] == "Overnight Oats"
+    assert len(logged.json()["ingredients"]) == 2
+    day = client.get("/api/nutrition/day").json()
+    assert day["consumed"]["calories"] == 281
+    assert day["entries"][0]["meal_type"] == "breakfast"
+
+
+def test_recipe_and_food_duplicates_are_rejected_and_favorites_are_private(client: TestClient) -> None:
+    login(client, "recipe-private-a")
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Banane", "calories": 89, "protein_g": 1.1, "carbs_g": 23, "fat_g": 0.3,
+    })
+    assert food.status_code == 201
+    duplicate_food = client.post("/api/nutrition/foods", json={
+        "name": "banane", "calories": 89, "protein_g": 1.1, "carbs_g": 23, "fat_g": 0.3,
+    })
+    assert duplicate_food.status_code == 409
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Bananen Snack", "meal_type": "snack",
+        "ingredients": [{"food_id": food.json()["id"], "amount_g": 120}],
+    })
+    assert recipe.status_code == 201
+    duplicate_recipe = client.post("/api/nutrition/recipes", json={
+        "name": "bananen snack", "meal_type": "snack",
+        "ingredients": [{"food_id": food.json()["id"], "amount_g": 120}],
+    })
+    assert duplicate_recipe.status_code == 409
+
+    client.post("/api/auth/logout")
+    login(client, "recipe-private-b")
+    assert client.get("/api/nutrition/recipes").json() == []
+    assert client.get("/api/nutrition/foods?q=Banane").json() == []
+    assert client.patch(f"/api/nutrition/recipes/{recipe.json()['id']}/favorite",
+                        json={"is_favorite": True}).status_code == 404
