@@ -116,6 +116,7 @@ def update_food(food_id: int, data: FoodUpdate, db: Session = Depends(get_db),
 @router.delete("/foods/{food_id}", status_code=204)
 def archive_food(food_id: int, db: Session = Depends(get_db),
                  user: User = Depends(current_user)):
+    household_id = household_id_for_user(db, user.id)
     food = db.scalar(select(Food).where(
         Food.id == food_id, Food.is_active.is_(True),
         Food.household_id == household_id,
@@ -191,7 +192,7 @@ def add_meal(data: MealCreate, db: Session = Depends(get_db),
     if data.food_id is not None and data.amount_g is not None:
         requested = [(data.food_id, data.amount_g)]
     food_ids = {food_id for food_id, _ in requested}
-    foods = db.scalars(visible_foods_statement(user.id).where(
+    foods = db.scalars(visible_foods_statement(user.id, db).where(
         Food.id.in_(food_ids), Food.is_active.is_(True)
     )).all()
     food_by_id = {food.id: food for food in foods}
@@ -252,7 +253,7 @@ def recipe_dict(template: MealTemplate, db: Session, user_id: int) -> dict:
         MealTemplateIngredient.template_id == template.id
     ).order_by(MealTemplateIngredient.id)).all()
     food_ids = {row.food_id for row in rows}
-    foods = db.scalars(visible_foods_statement(user_id).where(Food.id.in_(food_ids))).all()
+    foods = db.scalars(visible_foods_statement(user_id, db).where(Food.id.in_(food_ids))).all()
     by_id = {food.id: food for food in foods}
     ingredients = []
     totals = {key: 0.0 for key in MACROS}
@@ -298,7 +299,7 @@ def list_recipes(q: str = Query(default="", max_length=100), favorites_only: boo
         MealTemplateIngredient.template_id.in_(template_ids)
     ).order_by(MealTemplateIngredient.id)).all()
     food_ids = {row.food_id for row in rows}
-    foods = db.scalars(visible_foods_statement(user.id).where(Food.id.in_(food_ids))).all()
+    foods = db.scalars(visible_foods_statement(user.id, db).where(Food.id.in_(food_ids))).all()
     by_food = {food.id: food for food in foods}
     by_template: dict[int, list[MealTemplateIngredient]] = {}
     for row in rows:
@@ -334,7 +335,7 @@ def list_recipes(q: str = Query(default="", max_length=100), favorites_only: boo
 
 def validate_recipe_ingredients(data: RecipeCreate, db: Session, user_id: int) -> None:
     ids = {item.food_id for item in data.ingredients}
-    foods = db.scalars(visible_foods_statement(user_id).where(
+    foods = db.scalars(visible_foods_statement(user_id, db).where(
         Food.id.in_(ids), Food.is_active.is_(True)
     )).all()
     if len(foods) != len(ids):
@@ -345,7 +346,7 @@ def validate_recipe_ingredients(data: RecipeCreate, db: Session, user_id: int) -
 def create_recipe(data: RecipeCreate, db: Session = Depends(get_db),
                   user: User = Depends(current_user)):
     validate_recipe_ingredients(data, db, user.id)
-    duplicate = db.scalar(visible_recipes_statement(user.id).where(
+    duplicate = db.scalar(visible_recipes_statement(user.id, db).where(
         func.lower(MealTemplate.name) == data.name.casefold()
     ))
     if duplicate is not None:
@@ -367,12 +368,12 @@ def create_recipe(data: RecipeCreate, db: Session = Depends(get_db),
 @router.put("/recipes/{recipe_id}")
 def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_db),
                   user: User = Depends(current_user)):
-    template = db.scalar(visible_recipes_statement(user.id).where(
+    template = db.scalar(visible_recipes_statement(user.id, db).where(
         MealTemplate.id == recipe_id
     ))
     if template is None:
         raise HTTPException(404, "Gericht nicht gefunden.")
-    duplicate = db.scalar(visible_recipes_statement(user.id).where(
+    duplicate = db.scalar(visible_recipes_statement(user.id, db).where(
         func.lower(MealTemplate.name) == data.name.casefold(),
         MealTemplate.id != recipe_id,
     ))
@@ -396,7 +397,7 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
 @router.patch("/recipes/{recipe_id}/favorite")
 def set_recipe_favorite(recipe_id: int, data: FavoriteUpdate,
                         db: Session = Depends(get_db), user: User = Depends(current_user)):
-    template = db.scalar(visible_recipes_statement(user.id).where(
+    template = db.scalar(visible_recipes_statement(user.id, db).where(
         MealTemplate.id == recipe_id
     ))
     if template is None:
@@ -417,7 +418,7 @@ def set_recipe_favorite(recipe_id: int, data: FavoriteUpdate,
 @router.post("/recipes/{recipe_id}/log", status_code=201)
 def log_recipe(recipe_id: int, db: Session = Depends(get_db),
                user: User = Depends(current_user)):
-    template = db.scalar(visible_recipes_statement(user.id).where(
+    template = db.scalar(visible_recipes_statement(user.id, db).where(
         MealTemplate.id == recipe_id
     ))
     if template is None:
@@ -451,7 +452,7 @@ def log_recipe(recipe_id: int, db: Session = Depends(get_db),
 @router.delete("/recipes/{recipe_id}", status_code=204)
 def delete_recipe(recipe_id: int, db: Session = Depends(get_db),
                   user: User = Depends(current_user)):
-    template = db.scalar(visible_recipes_statement(user.id).where(
+    template = db.scalar(visible_recipes_statement(user.id, db).where(
         MealTemplate.id == recipe_id
     ))
     if template is None:
