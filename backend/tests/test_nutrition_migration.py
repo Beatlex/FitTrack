@@ -24,7 +24,7 @@ def test_nutrition_migration_upgrades_legacy_tables_and_is_repeatable() -> None:
             "VALUES (1, 1, 'Haferflocken', 370, 13, 59, 7, CURRENT_TIMESTAMP)"
         ))
         connection.execute(text(
-            "INSERT INTO meal_templates(id, owner_id, name, meal_type, created_at) "
+            "INSERT INTO meal_templates(id, owner_id, name, meal_type, is_favorite, created_at) "
             "VALUES (1, 1, 'Overnight Oats', 'breakfast', 1, CURRENT_TIMESTAMP)"
         ))
 
