@@ -110,7 +110,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
     setFoodEditorOpen(true);
   }
   async function archiveFood(food: Food) {
-    if (!window.confirm(`„${food.name}“ aus der Lebensmittelauswahl entfernen? Bereits gespeicherte Mahlzeiten und Gerichte bleiben erhalten.`)) return;
+    if (!window.confirm(`„${food.name}“ aus der gemeinsamen Lebensmittelauswahl entfernen? Historische Mahlzeiten bleiben erhalten. Falls ein Gericht das Lebensmittel nutzt, muss es zuerst angepasst werden.`)) return;
     await runAction(async () => {
       await api(`/api/nutrition/foods/${food.id}`, { method: "DELETE" });
       await loadFoods("");
