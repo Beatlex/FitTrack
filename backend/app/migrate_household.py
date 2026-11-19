@@ -45,25 +45,22 @@ def upgrade(bind=engine) -> None:
         if "household_id" not in recipe_columns:
             connection.execute(text("ALTER TABLE meal_templates ADD COLUMN household_id INTEGER REFERENCES households(id)"))
 
-        first_user = connection.execute(text("SELECT id FROM users ORDER BY id LIMIT 1")).scalar()
-        if first_user is not None:
-            household_id = connection.execute(text("SELECT id FROM households ORDER BY id LIMIT 1")).scalar()
-            created_household = household_id is None
-            if created_household:
-                connection.execute(text(
-                    "INSERT INTO households(name, owner_id, created_at) VALUES ('Mein Haushalt', :owner, CURRENT_TIMESTAMP)"
-                ), {"owner": first_user})
-                household_id = connection.execute(text("SELECT last_insert_rowid()")).scalar()
-                user_rows = connection.execute(text("SELECT id FROM users ORDER BY id")).all()
-                for index, row in enumerate(user_rows):
-                    connection.execute(text(
-                        "INSERT OR IGNORE INTO household_members(household_id, user_id, role, joined_at) "
-                        "VALUES (:household, :user, :role, CURRENT_TIMESTAMP)"
-                    ), {"household": household_id, "user": row[0], "role": "owner" if index == 0 else "member"})
-            connection.execute(text("UPDATE foods SET household_id = :household WHERE household_id IS NULL AND is_shared = 1"),
-                               {"household": household_id})
-            connection.execute(text("UPDATE meal_templates SET household_id = :household WHERE household_id IS NULL AND is_shared = 1"),
-                               {"household": household_id})
+        # Do not create a household implicitly. Accounts remain independent until
+        # a user explicitly creates a household or accepts an invitation.
+        # If an older migration already created a legacy household, preserve its
+        # existing membership and shared catalogue assignments.
+        household_id = connection.execute(
+            text("SELECT id FROM households ORDER BY id LIMIT 1")
+        ).scalar()
+        if household_id is not None:
+            connection.execute(
+                text("UPDATE foods SET household_id = :household WHERE household_id IS NULL AND is_shared = 1"),
+                {"household": household_id},
+            )
+            connection.execute(
+                text("UPDATE meal_templates SET household_id = :household WHERE household_id IS NULL AND is_shared = 1"),
+                {"household": household_id},
+            )
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_foods_household_id ON foods(household_id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_meal_templates_household_id ON meal_templates(household_id)"))
 
