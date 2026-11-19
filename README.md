@@ -60,7 +60,7 @@ Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debi
 - Der lokale Entwicklungsschlüssel ist ausschließlich für lokale Tests gedacht. Produktionsstarts ohne einen mindestens 32 Zeichen langen `SESSION_SECRET` und ohne `COOKIE_SECURE=true` werden abgebrochen.
 - Haushaltsmitgliedschaften und Einladungen werden serverseitig geprüft. Lebensmittel und Gerichte gehören zu einer konkreten Haushalt-ID; Einladungen werden erst nach ausdrücklicher Annahme wirksam.
 - Der Ersteller bleibt dauerhaft Admin. Er kann offene Einladungen zurückziehen und Mitglieder entfernen. Mitglieder können den Haushalt verlassen; der Admin kann den Haushalt auflösen, sobald er alleiniger Teilnehmer ist. Bei der Auflösung bleiben Lebensmittel und Gerichte als private Einträge ihrer Ersteller erhalten.
-- Der Household-Migrationsschritt ordnet bestehende Konten und bisher gemeinsam sichtbare Lebensmittel/Gerichte einem gemeinsamen Haushalt zu. Migrationen vor dem ersten App-Start ausführen (siehe Befehle oben).
+- Der Household-Migrationsschritt legt das Schema an, erstellt aber keinen Haushalt automatisch. Bestehende Benutzer bleiben unabhängig, bis sie selbst einen Haushalt erstellen oder eine Einladung annehmen. Migrationen vor dem ersten App-Start ausführen (siehe Befehle oben).
 - Tagesziele, Körpermessungen und protokollierte Mahlzeiten bleiben strikt benutzerbezogen. Nährwert-Snapshots bereits protokollierter Mahlzeiten werden durch spätere Änderungen am Lebensmittel oder Rezept nicht verändert.
 
 ## Aktueller Funktionsumfang
