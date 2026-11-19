@@ -8,11 +8,17 @@ from ..database import get_db
 from ..dependencies import current_user
 from ..household_models import Household, HouseholdInvitation, HouseholdMember
 from ..models import User
-from ..nutrition_models import Food, MealTemplate
+from ..nutrition_models import (
+    Food, FoodAccess, MealTemplate, RecipeAccess,
+)
 from ..catalog_access import (
     grant_owned_catalog_to_household,
     grant_household_catalog_to_member,
     revoke_household_access_for_member,
+    grant_food_to_user,
+    revoke_food_from_user,
+    grant_recipe_to_user,
+    revoke_recipe_from_user,
 )
 
 router = APIRouter(prefix="/api/household", tags=["household"])
@@ -87,6 +93,146 @@ def household_payload(db: Session, household: Household, user_id: int) -> dict:
             for member, username in members
         ],
     }
+
+
+
+
+def _catalog_access_context(db: Session, user_id: int):
+    membership = membership_for_user(db, user_id)
+    if membership is None:
+        raise HTTPException(409, "Du musst einem Haushalt angehören.")
+    require_owner(db, user_id, membership.household_id)
+    return membership
+
+
+def _require_catalog_member(db: Session, household_id: int, target_user_id: int) -> HouseholdMember:
+    target = db.scalar(select(HouseholdMember).where(
+        HouseholdMember.household_id == household_id,
+        HouseholdMember.user_id == target_user_id,
+    ))
+    if target is None:
+        raise HTTPException(404, "Haushaltsmitglied nicht gefunden.")
+    return target
+
+
+@router.get("/catalog-access")
+def get_catalog_access(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    membership = _catalog_access_context(db, user.id)
+    household_id = membership.household_id
+    members = db.execute(
+        select(HouseholdMember, User.username)
+        .join(User, User.id == HouseholdMember.user_id)
+        .where(HouseholdMember.household_id == household_id)
+        .order_by(HouseholdMember.joined_at, HouseholdMember.id)
+    ).all()
+    foods = db.scalars(select(Food).where(
+        Food.household_id == household_id,
+        Food.is_active.is_(True),
+        Food.is_system.is_(False),
+    ).order_by(Food.name, Food.id)).all()
+    recipes = db.scalars(select(MealTemplate).where(
+        MealTemplate.household_id == household_id,
+    ).order_by(MealTemplate.name, MealTemplate.id)).all()
+    food_ids = [item.id for item in foods]
+    recipe_ids = [item.id for item in recipes]
+    food_grants = set(db.execute(select(FoodAccess.food_id, FoodAccess.user_id).where(
+        FoodAccess.food_id.in_(food_ids),
+    )).all()) if food_ids else set()
+    recipe_grants = set(db.execute(select(RecipeAccess.recipe_id, RecipeAccess.user_id).where(
+        RecipeAccess.recipe_id.in_(recipe_ids),
+    )).all()) if recipe_ids else set()
+    return {
+        "members": [
+            {"user_id": member.user_id, "username": username, "role": member.role}
+            for member, username in members
+        ],
+        "foods": [
+            {"id": item.id, "name": item.name, "owner_id": item.owner_id,
+             "granted_user_ids": sorted(uid for food_id, uid in food_grants if food_id == item.id)}
+            for item in foods
+        ],
+        "recipes": [
+            {"id": item.id, "name": item.name, "owner_id": item.owner_id,
+             "granted_user_ids": sorted(uid for recipe_id, uid in recipe_grants if recipe_id == item.id)}
+            for item in recipes
+        ],
+    }
+
+
+@router.put("/catalog-access/foods/{food_id}/members/{target_user_id}", status_code=204)
+def grant_food_access(food_id: int, target_user_id: int,
+                      db: Session = Depends(get_db), user: User = Depends(current_user)):
+    membership = _catalog_access_context(db, user.id)
+    target = _require_catalog_member(db, membership.household_id, target_user_id)
+    food = db.scalar(select(Food).where(
+        Food.id == food_id,
+        Food.household_id == membership.household_id,
+        Food.is_active.is_(True),
+        Food.is_system.is_(False),
+    ))
+    if food is None:
+        raise HTTPException(404, "Haushalts-Lebensmittel nicht gefunden.")
+    if target.role == "owner" or food.owner_id == target_user_id:
+        raise HTTPException(409, "Der Haushaltsinhaber und der Ersteller behalten ihren Zugriff.")
+    grant_food_to_user(db, food.id, target.user_id)
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.delete("/catalog-access/foods/{food_id}/members/{target_user_id}", status_code=204)
+def revoke_food_access(food_id: int, target_user_id: int,
+                       db: Session = Depends(get_db), user: User = Depends(current_user)):
+    membership = _catalog_access_context(db, user.id)
+    target = _require_catalog_member(db, membership.household_id, target_user_id)
+    food = db.scalar(select(Food).where(
+        Food.id == food_id,
+        Food.household_id == membership.household_id,
+        Food.is_active.is_(True),
+        Food.is_system.is_(False),
+    ))
+    if food is None:
+        raise HTTPException(404, "Haushalts-Lebensmittel nicht gefunden.")
+    if target.role == "owner" or food.owner_id == target_user_id:
+        raise HTTPException(409, "Der Haushaltsinhaber und der Ersteller behalten ihren Zugriff.")
+    revoke_food_from_user(db, food.id, target.user_id)
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.put("/catalog-access/recipes/{recipe_id}/members/{target_user_id}", status_code=204)
+def grant_recipe_access(recipe_id: int, target_user_id: int,
+                        db: Session = Depends(get_db), user: User = Depends(current_user)):
+    membership = _catalog_access_context(db, user.id)
+    target = _require_catalog_member(db, membership.household_id, target_user_id)
+    recipe = db.scalar(select(MealTemplate).where(
+        MealTemplate.id == recipe_id,
+        MealTemplate.household_id == membership.household_id,
+    ))
+    if recipe is None:
+        raise HTTPException(404, "Haushalts-Gericht nicht gefunden.")
+    if target.role == "owner" or recipe.owner_id == target_user_id:
+        raise HTTPException(409, "Der Haushaltsinhaber und der Ersteller behalten ihren Zugriff.")
+    grant_recipe_to_user(db, recipe.id, target.user_id)
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.delete("/catalog-access/recipes/{recipe_id}/members/{target_user_id}", status_code=204)
+def revoke_recipe_access(recipe_id: int, target_user_id: int,
+                         db: Session = Depends(get_db), user: User = Depends(current_user)):
+    membership = _catalog_access_context(db, user.id)
+    target = _require_catalog_member(db, membership.household_id, target_user_id)
+    recipe = db.scalar(select(MealTemplate).where(
+        MealTemplate.id == recipe_id,
+        MealTemplate.household_id == membership.household_id,
+    ))
+    if recipe is None:
+        raise HTTPException(404, "Haushalts-Gericht nicht gefunden.")
+    if target.role == "owner" or recipe.owner_id == target_user_id:
+        raise HTTPException(409, "Der Haushaltsinhaber und der Ersteller behalten ihren Zugriff.")
+    revoke_recipe_from_user(db, recipe.id, target.user_id)
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.post("", status_code=201)
