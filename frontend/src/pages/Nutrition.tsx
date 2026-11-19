@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { ArrowLeft, Eye, EyeOff, Heart, Pencil, Plus, Save, Search, Trash2, Utensils } from "lucide-react";
+import { ArrowLeft, Heart, Pencil, Plus, Save, Search, Trash2, Utensils } from "lucide-react";
 import { api } from "../services/api";
 
 type Values = { calories: number; protein_g: number; carbs_g: number; fat_g: number };
@@ -40,9 +40,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
   const [view, setView] = useState<View>("today");
   const [daily, setDaily] = useState<Daily | null>(null);
   const [foods, setFoods] = useState<Food[]>([]);
-  const [hiddenFoods, setHiddenFoods] = useState<Food[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [hiddenRecipes, setHiddenRecipes] = useState<Recipe[]>([]);
   const [goals, setGoals] = useState<Values>(empty);
   const [foodQuery, setFoodQuery] = useState("");
   const [recipeQuery, setRecipeQuery] = useState("");
@@ -70,15 +68,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
   async function loadRecipes(search = recipeQuery, favorites = favoritesOnly) {
     setRecipes(await api<Recipe[]>(`/api/nutrition/recipes?q=${encodeURIComponent(search)}&favorites_only=${favorites}`));
   }
-  async function loadHiddenFoods() {
-    setHiddenFoods(await api<Food[]>("/api/nutrition/foods/hidden"));
-  }
-  async function loadHiddenRecipes() {
-    setHiddenRecipes(await api<Recipe[]>("/api/nutrition/recipes/hidden"));
-  }
-  async function reload() {
-    await Promise.all([loadDay(), loadFoods(), loadRecipes(), loadHiddenFoods(), loadHiddenRecipes()]);
-  }
+  async function reload() { await Promise.all([loadDay(), loadFoods(), loadRecipes()]); }
   useEffect(() => { void reload().catch((e: Error) => setError(e.message)); }, []);
 
   const favoriteRecipes = useMemo(() => recipes.filter(recipe => recipe.is_favorite), [recipes]);
@@ -120,23 +110,11 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
     setFoodEditorOpen(true);
   }
   async function archiveFood(food: Food) {
-    if (!window.confirm(`„${food.name}“ aus deiner Lebensmittelauswahl ausblenden? Andere Haushaltsmitglieder behalten den Zugriff.`)) return;
+    if (!window.confirm(`„${food.name}“ aus der gemeinsamen Lebensmittelauswahl entfernen? Historische Mahlzeiten bleiben erhalten. Falls ein Gericht das Lebensmittel nutzt, muss es zuerst angepasst werden.`)) return;
     await runAction(async () => {
-      await api(`/api/nutrition/foods/${food.id}/hide`, { method: "POST" });
-      await Promise.all([loadFoods(""), loadHiddenFoods()]);
-    }, "Lebensmittel wurde nur für dich ausgeblendet.");
-  }
-  async function restoreFood(food: Food) {
-    await runAction(async () => {
-      await api(`/api/nutrition/foods/${food.id}/hide`, { method: "DELETE" });
-      await Promise.all([loadFoods(""), loadHiddenFoods()]);
-    }, "Lebensmittel ist wieder sichtbar.");
-  }
-  async function restoreRecipe(recipe: Recipe) {
-    await runAction(async () => {
-      await api(`/api/nutrition/recipes/${recipe.id}/hide`, { method: "DELETE" });
-      await Promise.all([loadRecipes(""), loadHiddenRecipes()]);
-    }, "Gericht ist wieder sichtbar.");
+      await api(`/api/nutrition/foods/${food.id}`, { method: "DELETE" });
+      await loadFoods("");
+    }, "Lebensmittel wurde archiviert.");
   }
   async function saveRecipe(e: FormEvent) {
     e.preventDefault();
@@ -170,11 +148,8 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
     }, recipe.name + " wurde für heute eingetragen.");
   }
   async function deleteRecipe(recipe: Recipe) {
-    if (!window.confirm(`Gericht „${recipe.name}“ nur aus deiner persönlichen Sammlung ausblenden? Andere Haushaltsmitglieder behalten es.`)) return;
-    await runAction(async () => {
-      await api(`/api/nutrition/recipes/${recipe.id}/hide`, { method: "POST" });
-      await Promise.all([loadRecipes(), loadHiddenRecipes()]);
-    }, "Gericht wurde nur für dich ausgeblendet.");
+    if (!window.confirm(`Gericht „${recipe.name}“ wirklich aus der gemeinsamen Sammlung für beide Benutzer löschen? Bereits eingetragene Mahlzeiten bleiben erhalten.`)) return;
+    await runAction(async () => { await api(`/api/nutrition/recipes/${recipe.id}`, { method: "DELETE" }); await loadRecipes(); }, "Gericht gelöscht.");
   }
   async function deleteMeal(id: number) {
     await runAction(async () => { await api(`/api/nutrition/meals/${id}`, { method: "DELETE" }); await loadDay(); await onDataChanged(); }, "Mahlzeit gelöscht.");
@@ -235,13 +210,6 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
           <label className="favorite-filter"><input type="checkbox" checked={favoritesOnly} onChange={e => { setFavoritesOnly(e.target.checked); void loadRecipes(recipeQuery, e.target.checked); }}/> Nur Favoriten</label></div>
         {!recipes.length ? <div className="nutrition-empty"><Utensils/><p>Noch keine Gerichte gespeichert.</p><span>Erstelle dein erstes Gericht aus vorhandenen Lebensmitteln.</span></div> :
           <div className="recipe-cards">{recipes.map(recipe => <RecipeCard key={recipe.id} recipe={recipe} busy={busy} onLog={() => void logRecipe(recipe)} onFavorite={() => void toggleRecipe(recipe)} onDelete={() => void deleteRecipe(recipe)} onEdit={() => editRecipe(recipe)}/>)}</div>}
-        {!!hiddenRecipes.length && <div className="hidden-catalog-list">
-          <h3>Für dich ausgeblendete Gerichte</h3>
-          {hiddenRecipes.map(recipe => <article className="food-row" key={recipe.id}>
-            <div><b>{recipe.name}</b><small>{mealLabels[recipe.meal_type] ?? recipe.meal_type} · {recipe.ingredients.length} Zutaten</small></div>
-            <button className="secondary-button" disabled={busy} onClick={() => void restoreRecipe(recipe)}><Eye size={15}/> Wiederherstellen</button>
-          </article>)}
-        </div>}
       </section>
       <section className="panel recipe-create-panel">
         <div className="panel-heading"><div><h2>{editingRecipe ? "Gericht bearbeiten" : "Neues Gericht erstellen"}</h2><p>Verwende vorhandene Lebensmittel und speichere das Rezept für später.</p></div></div>
@@ -282,14 +250,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
         {!foods.length ? <div className="nutrition-empty"><p>Keine Lebensmittel gefunden.</p></div> :
           <div className="food-list">{foods.map(food => <article className="food-row" key={food.id}><div><b>{food.name}</b><small>Je {n(food.basis_g)} g · {n(food.calories)} kcal · P {n(food.protein_g)} g · KH {n(food.carbs_g)} g · F {n(food.fat_g)} g</small></div>
             <div className="food-actions"><button className="icon-action" aria-label={`${food.name} bearbeiten`} disabled={busy || food.is_system} onClick={() => editFood(food)}><Pencil size={16}/></button>
-              <button className="icon-action danger" aria-label={`${food.name} ausblenden`} disabled={busy || food.is_system} onClick={() => void archiveFood(food)}><EyeOff size={16}/></button></div></article>)}</div>}
-        {!!hiddenFoods.length && <div className="hidden-catalog-list">
-          <h3>Für dich ausgeblendete Lebensmittel</h3>
-          {hiddenFoods.map(food => <article className="food-row" key={food.id}>
-            <div><b>{food.name}</b><small>{n(food.calories)} kcal je {n(food.basis_g)} g</small></div>
-            <button className="secondary-button" disabled={busy} onClick={() => void restoreFood(food)}><Eye size={15}/> Wiederherstellen</button>
-          </article>)}
-        </div>}
+              <button className="icon-action danger" aria-label={`${food.name} löschen`} disabled={busy || food.is_system} onClick={() => void archiveFood(food)}><Trash2 size={16}/></button></div></article>)}</div>}
       </section>
     </>}
     {error && <p className="form-message error-message" role="alert">{error}</p>}
@@ -305,6 +266,6 @@ function RecipeCard({ recipe, busy, onLog, onFavorite, onDelete, onEdit }: {
       <button className={recipe.is_favorite ? "favorite-button active" : "favorite-button"} aria-label={recipe.is_favorite ? "Favorit entfernen" : "Als Favorit markieren"} disabled={busy} onClick={onFavorite}><Heart size={17} fill={recipe.is_favorite ? "currentColor" : "none"}/></button></div>
     <ul>{recipe.ingredients.map((item, i) => <li key={item.id ?? item.food_id + "-" + i}>{item.food_name} · {n(item.amount_g)} g</li>)}</ul>
     <p className="recipe-nutrients">{n(recipe.calories)} kcal · P {n(recipe.protein_g)} g · KH {n(recipe.carbs_g)} g · F {n(recipe.fat_g)} g</p>
-    <div className="recipe-card-actions">{onEdit && <button className="icon-action" aria-label={`${recipe.name} bearbeiten`} disabled={busy} onClick={onEdit}><Pencil size={16}/></button>}<button className="primary" disabled={busy} onClick={onLog}><Plus size={15}/> Heute eintragen</button>{onDelete && <button className="icon-action danger" disabled={busy} aria-label="Gericht ausblenden" onClick={onDelete}><EyeOff size={15}/></button>}</div>
+    <div className="recipe-card-actions">{onEdit && <button className="icon-action" aria-label={`${recipe.name} bearbeiten`} disabled={busy} onClick={onEdit}><Pencil size={16}/></button>}<button className="primary" disabled={busy} onClick={onLog}><Plus size={15}/> Heute eintragen</button>{onDelete && <button className="icon-action danger" disabled={busy} aria-label="Gericht löschen" onClick={onDelete}><Trash2 size={15}/></button>}</div>
   </article>;
 }
