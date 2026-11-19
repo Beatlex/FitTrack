@@ -146,6 +146,11 @@ def test_any_user_can_create_named_household_and_invite_multiple_members(client:
     assert created.json()["name"] == "WG Sonnenschein"
     assert created.json()["current_user_role"] == "owner"
     assert len(created.json()["members"]) == 1
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Private Haferflocken", "basis_g": 100, "calories": 370,
+        "protein_g": 13, "carbs_g": 59, "fat_g": 7,
+    })
+    assert food.status_code == 201
     assert client.post("/api/household", json={"name": "Zweiter Haushalt"}).status_code == 409
 
     assert client.post("/api/household/invitations", json={"username": "first-admin"}).status_code == 201
@@ -179,3 +184,6 @@ def test_any_user_can_create_named_household_and_invite_multiple_members(client:
     after_delete = client.get("/api/household").json()
     assert after_delete["household"] is None
     assert after_delete["invitations"] == []
+    private_catalog = client.get("/api/nutrition/foods?q=Private%20Haferflocken")
+    assert private_catalog.status_code == 200
+    assert len(private_catalog.json()) == 1
