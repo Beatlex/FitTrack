@@ -16,10 +16,6 @@ class HouseholdCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
 
 
-class OwnerTransfer(BaseModel):
-    user_id: int = Field(gt=0)
-
-
 class InvitationCreate(BaseModel):
     username: str = Field(min_length=3, max_length=40, pattern=r"^[a-zA-Z0-9_.-]+$")
 
@@ -236,25 +232,3 @@ def leave_household(db: Session = Depends(get_db), user: User = Depends(current_
     db.commit()
     return Response(status_code=204)
 
-
-@router.post("/transfer-owner")
-def transfer_owner(data: OwnerTransfer, db: Session = Depends(get_db),
-                   user: User = Depends(current_user)):
-    membership = membership_for_user(db, user.id)
-    if membership is None:
-        raise HTTPException(404, "Haushalt nicht gefunden.")
-    require_owner(db, user.id, membership.household_id)
-    target = db.scalar(select(HouseholdMember).where(
-        HouseholdMember.household_id == membership.household_id,
-        HouseholdMember.user_id == data.user_id,
-    ))
-    if target is None or target.user_id == user.id:
-        raise HTTPException(404, "Das ausgewählte Mitglied wurde nicht gefunden.")
-    household = db.get(Household, membership.household_id)
-    if household is None:
-        raise HTTPException(404, "Haushalt nicht gefunden.")
-    membership.role = "member"
-    target.role = "owner"
-    household.owner_id = target.user_id
-    db.commit()
-    return {"status": "transferred", "owner_id": target.user_id}
