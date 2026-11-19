@@ -30,6 +30,8 @@ def login(client: TestClient, username: str) -> None:
     password = "correct-horse-battery-staple"
     assert client.post("/api/auth/register", json={"username": username, "password": password}).status_code == 201
     assert client.post("/api/auth/login", json={"username": username, "password": password}).status_code == 200
+    if client.get("/api/household").json()["household"] is None:
+        assert client.post("/api/household", json={"name": username + " Household"}).status_code == 201
 
 
 
