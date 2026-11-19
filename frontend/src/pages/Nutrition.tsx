@@ -4,7 +4,7 @@ import { api } from "../services/api";
 
 type Values = { calories: number; protein_g: number; carbs_g: number; fat_g: number };
 type Food = Values & { id: number; name: string; basis_g: number; brand: string | null; is_system: boolean };
-type Ingredient = Values & { id?: number; food_id: number; food_name: string; amount_g: number };
+type Ingredient = Values & { id?: number; food_id: number; food_name: string; amount_g: number; is_active?: boolean };
 type Entry = Values & { id: number; food_name: string; amount_g: number; meal_type: string; ingredients: Ingredient[] };
 type Daily = { goals: Values | null; consumed: Values; remaining: Values | null; entries: Entry[] };
 type Recipe = Values & { id: number; name: string; meal_type: string; is_favorite: boolean; amount_g: number; ingredients: Ingredient[] };
@@ -72,9 +72,9 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
   useEffect(() => { void reload().catch((e: Error) => setError(e.message)); }, []);
 
   const favoriteRecipes = useMemo(() => recipes.filter(recipe => recipe.is_favorite), [recipes]);
-  async function runAction(action: () => Promise<void>, success: string) {
+  async function runAction(action: () => Promise<void | boolean>, success: string) {
     setBusy(true); setError(""); setNotice("");
-    try { await action(); setNotice(success); }
+    try { const completed = await action(); if (completed !== false) setNotice(success); }
     catch (e) { setError(e instanceof Error ? e.message : "Die Aktion ist fehlgeschlagen."); }
     finally { setBusy(false); }
   }
@@ -94,7 +94,8 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
       } else {
         const matches = await api<Food[]>(`/api/nutrition/foods?q=${encodeURIComponent(payload.name)}`);
         const existing = matches.find(item => item.name.trim().toLocaleLowerCase() === payload.name.toLocaleLowerCase());
-        if (existing && !window.confirm(`„${existing.name}“ ist bereits vorhanden. Soll dieses Lebensmittel mit den neuen Nährwerten aktualisiert werden?`)) return;
+        if (existing && !window.confirm(`„${existing.name}“ ist bereits vorhanden. Soll dieser Eintrag aktualisiert werden?`)) return false;
+        if (existing?.is_system) throw new Error("Dieses Lebensmittel ist ein geschützter Systemeintrag.");
         if (existing) await api(`/api/nutrition/foods/${existing.id}`, { method: "PUT", body: JSON.stringify(payload) });
         else await api("/api/nutrition/foods", { method: "POST", body: JSON.stringify(payload) });
       }
@@ -209,7 +210,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
 
     {view === "recipes" && <>
       <section className="panel">
-        <div className="panel-heading"><div><h2>Deine Gerichte</h2><p>Gemeinsame Gerichte für beide Benutzer. Favoriten bleiben pro Benutzer privat.</p></div>
+        <div className="panel-heading"><div><h2>Deine Gerichte</h2><p>Gemeinsame Gerichte für beide Benutzer · Favoriten bleiben pro Benutzer privat.</p></div>
           <button className="primary" onClick={() => setView("foods")}><Plus size={16}/> Lebensmittel verwalten</button></div>
         <div className="nutrition-tools"><div className="nutrition-search"><Search size={16}/><input placeholder="Gericht suchen" value={recipeQuery} onChange={e => { setRecipeQuery(e.target.value); void loadRecipes(e.target.value); }}/></div>
           <label className="favorite-filter"><input type="checkbox" checked={favoritesOnly} onChange={e => { setFavoritesOnly(e.target.checked); void loadRecipes(recipeQuery, e.target.checked); }}/> Nur Favoriten</label></div>
@@ -254,8 +255,8 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
         <div className="nutrition-tools"><div className="nutrition-search"><Search size={16}/><input placeholder="Lebensmittel suchen" value={foodQuery} onChange={e => { setFoodQuery(e.target.value); void loadFoods(e.target.value); }}/></div></div>
         {!foods.length ? <div className="nutrition-empty"><p>Keine Lebensmittel gefunden.</p></div> :
           <div className="food-list">{foods.map(food => <article className="food-row" key={food.id}><div><b>{food.name}</b><small>Je {n(food.basis_g)} g · {n(food.calories)} kcal · P {n(food.protein_g)} g · KH {n(food.carbs_g)} g · F {n(food.fat_g)} g</small></div>
-            <div className="food-actions"><button className="icon-action" aria-label={`${food.name} bearbeiten`} disabled={busy} onClick={() => editFood(food)}><Pencil size={16}/></button>
-              <button className="icon-action danger" aria-label={`${food.name} löschen`} disabled={busy} onClick={() => void archiveFood(food)}><Trash2 size={16}/></button></div></article>)}</div>}
+            <div className="food-actions"><button className="icon-action" aria-label={`${food.name} bearbeiten`} disabled={busy || food.is_system} onClick={() => editFood(food)}><Pencil size={16}/></button>
+              <button className="icon-action danger" aria-label={`${food.name} löschen`} disabled={busy || food.is_system} onClick={() => void archiveFood(food)}><Trash2 size={16}/></button></div></article>)}</div>}
       </section>
     </>}}
     {error && <p className="form-message error-message" role="alert">{error}</p>}
