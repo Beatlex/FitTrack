@@ -1,8 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { CalendarDays, Check, Crown, Home, LogOut, Plus, ShieldCheck, ShoppingBasket, UserMinus, Users, X } from "lucide-react";
 import { api } from "../services/api";
+import CatalogAccessSection, {
+  type CatalogAccessData,
+  type CatalogItem,
+  type HouseholdMember as Member,
+} from "./CatalogAccessSection";
 
-type Member = { user_id: number; username: string; role: "owner" | "member"; joined_at: string };
 type Invitation = { id: number; household_name?: string; invited_by?: string; username?: string; created_at: string };
 type HouseholdData = {
   id: number;
@@ -16,12 +20,6 @@ type ResponseData = {
   household: HouseholdData | null;
   invitations: Invitation[];
   pending_invitations?: Invitation[];
-};
-type CatalogItem = { id: number; name: string; owner_id: number | null; granted_user_ids: number[] };
-type CatalogAccessData = {
-  members: Pick<Member, "user_id" | "username" | "role">[];
-  foods: CatalogItem[];
-  recipes: CatalogItem[];
 };
 
 const dateLabel = (value: string) => new Date(value).toLocaleDateString("de-DE");
@@ -94,13 +92,11 @@ export default function HouseholdPage() {
     }, "Einladung wurde erstellt. Der Benutzer muss sie noch annehmen.");
   }
 
-
   async function updateCatalogGrant(kind: "foods" | "recipes", item: CatalogItem, member: Member, granted: boolean) {
-    const resource = kind === "foods" ? "foods" : "recipes";
     const method = granted ? "PUT" : "DELETE";
     await run(async () => {
       await api(
-        `/api/household/catalog-access/${resource}/${item.id}/members/${member.user_id}`,
+        `/api/household/catalog-access/${kind}/${item.id}/members/${member.user_id}`,
         { method },
       );
     }, granted ? "Freigabe wurde erteilt." : "Freigabe wurde entzogen.");
@@ -173,45 +169,6 @@ export default function HouseholdPage() {
           </div>
         </section>
 
-
-        {isOwner && catalogAccess && <section className="panel household-section catalog-access-panel">
-          <div className="panel-heading">
-            <div><h2><ShieldCheck size={18}/> Einzelberechtigungen</h2>
-              <p>Verwalte separat, welche Mitglieder einzelne Lebensmittel und Gerichte sehen und verwenden dürfen. Ersteller und Admin behalten immer Zugriff.</p>
-            </div>
-          </div>
-          {(["foods", "recipes"] as const).map(kind => {
-            const items = catalogAccess[kind];
-            const label = kind === "foods" ? "Lebensmittel" : "Gerichte";
-            return <div className="catalog-access-group" key={kind}>
-              <h3>{label}</h3>
-              {!items.length ? <p className="muted">Noch keine {label.toLowerCase()} im Haushalt.</p> :
-                items.map(item => <article className="catalog-access-item" key={item.id}>
-                  <div className="catalog-access-heading">
-                    <b>{item.name}</b>
-                    <small>{item.owner_id == null ? "Gemeinsamer Eintrag" : item.owner_id === household.current_user_id ? "Von dir erstellt" : `Ersteller: ${household.members.find(member => member.user_id === item.owner_id)?.username ?? "ehemaliges Mitglied"}`}</small>
-                  </div>
-                  <div className="catalog-access-members">
-                    {household.members.filter(member => member.role !== "owner").map(member => {
-                      const checked = item.granted_user_ids.includes(member.user_id);
-                      const protectedCreator = item.owner_id === member.user_id;
-                      return <label className="catalog-access-toggle" key={member.user_id}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={busy || protectedCreator}
-                          aria-label={`${label}: ${item.name} für ${member.username} freigeben`}
-                          onChange={event => void updateCatalogGrant(kind, item, member, event.target.checked)}
-                        />
-                        <span>{member.username}{protectedCreator ? " · Ersteller" : ""}</span>
-                      </label>;
-                    })}
-                  </div>
-                </article>)}
-            </div>;
-          })}
-        </section>}
-
         {isOwner && <section className="panel household-section">
           <div className="panel-heading"><div><h2><Plus size={18}/> Benutzer einladen</h2><p>Lade beliebig viele registrierte Benutzer anhand ihres Benutzernamens ein. Sie treten erst nach Annahme bei.</p></div></div>
           <form className="household-invite-form" onSubmit={invite}>
@@ -231,6 +188,16 @@ export default function HouseholdPage() {
             </div>)}
           </div>}
         </section>}
+
+        {isOwner && catalogAccess && (
+          <CatalogAccessSection
+            catalogAccess={catalogAccess}
+            members={household.members}
+            currentUserId={household.current_user_id}
+            busy={busy}
+            onGrantChange={(kind, item, member, granted) => void updateCatalogGrant(kind, item, member, granted)}
+          />
+        )}
 
         {isOwner && <section className="panel household-section leave-household">
           <div><h2><ShieldCheck size={18}/> Admin-Verantwortung</h2><p>{household.members.length > 1 ? "Du bist der Admin und bleibst es. Solange weitere Mitglieder im Haushalt sind, kannst du ihn nicht verlassen." : "Du bist das einzige Mitglied. Wenn du den Haushalt auflöst, werden auch offene Einladungen und die Haushaltsfreigabe entfernt. Deine persönlichen Daten bleiben erhalten."}</p></div>
