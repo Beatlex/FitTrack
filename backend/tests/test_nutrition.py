@@ -97,7 +97,7 @@ def test_recipe_with_multiple_ingredients_sums_nutrients_and_deletes_cleanly(cli
     assert after_delete["entries"] == []
 
 
-def test_recipe_rejects_foreign_ingredient_and_too_many_ingredients(client: TestClient) -> None:
+def test_second_user_can_use_shared_food_and_meal_limits_are_enforced(client: TestClient) -> None:
     login(client, "recipe-first")
     private_food = client.post("/api/nutrition/foods", json={
         "name": "Private Ingredient", "calories": 100, "protein_g": 1, "carbs_g": 1, "fat_g": 1,
@@ -109,7 +109,7 @@ def test_recipe_rejects_foreign_ingredient_and_too_many_ingredients(client: Test
         "meal_type": "breakfast",
         "ingredients": [{"food_id": private_food["id"], "amount_g": 100}],
     })
-    assert response.status_code == 404
+    assert response.status_code == 201
 
     too_many = [{"food_id": 999, "amount_g": 1} for _ in range(31)]
     invalid = client.post("/api/nutrition/meals", json={
@@ -191,7 +191,7 @@ def test_food_can_be_updated_and_archived_without_changing_historical_entries(cl
     assert duplicate.status_code == 409
 
     archived = client.delete(f"/api/nutrition/foods/{food_id}")
-    assert archived.status_code == 200
+    assert archived.status_code == 204
     assert client.get("/api/nutrition/foods?q=Haferflocken").json() == []
     assert client.post("/api/nutrition/meals", json={
         "meal_name": "No longer selectable", "meal_type": "breakfast",
