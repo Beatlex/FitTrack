@@ -36,6 +36,33 @@ def require_owner(db: Session, user_id: int, household_id: int) -> HouseholdMemb
     return membership
 
 
+
+def share_owned_catalog(db: Session, user_id: int, household_id: int) -> None:
+    """Move a member's pre-existing private catalog into their new household."""
+    db.execute(update(Food).where(
+        Food.owner_id == user_id, Food.household_id.is_(None), Food.is_system.is_(False)
+    ).values(household_id=household_id, is_shared=True))
+    db.execute(update(MealTemplate).where(
+        MealTemplate.owner_id == user_id, MealTemplate.household_id.is_(None)
+    ).values(household_id=household_id, is_shared=True))
+
+
+def privatize_owned_catalog(db: Session, user_id: int, household_id: int) -> None:
+    """Make a departing member's catalog private, retaining foods used by others' recipes."""
+    used_by_other_recipe = select(MealTemplateIngredient.food_id).join(
+        MealTemplate, MealTemplate.id == MealTemplateIngredient.template_id
+    ).where(
+        MealTemplate.household_id == household_id,
+        MealTemplate.owner_id != user_id,
+    )
+    db.execute(update(Food).where(
+        Food.owner_id == user_id, Food.household_id == household_id,
+        Food.id.not_in(used_by_other_recipe),
+    ).values(household_id=None, is_shared=False))
+    db.execute(update(MealTemplate).where(
+        MealTemplate.owner_id == user_id, MealTemplate.household_id == household_id
+    ).values(household_id=None, is_shared=False))
+
 def household_payload(db: Session, household: Household, user_id: int) -> dict:
     members = db.execute(
         select(HouseholdMember, User.username)
@@ -69,6 +96,7 @@ def create_household(data: HouseholdCreate, db: Session = Depends(get_db),
     db.add(household)
     db.flush()
     db.add(HouseholdMember(household_id=household.id, user_id=user.id, role="owner"))
+    share_owned_catalog(db, user.id, household.id)
     try:
         db.commit()
     except IntegrityError:
@@ -164,6 +192,7 @@ def accept_invitation(invitation_id: int, db: Session = Depends(get_db),
     db.add(HouseholdMember(
         household_id=invitation.household_id, user_id=user.id, role="member"
     ))
+    share_owned_catalog(db, user.id, invitation.household_id)
     db.delete(invitation)
     try:
         db.commit()
@@ -207,6 +236,7 @@ def remove_member(member_user_id: int, db: Session = Depends(get_db),
         require_owner(db, user.id, membership.household_id)
         if target.role == "owner":
             raise HTTPException(409, "Der Haushaltsinhaber kann nicht entfernt werden.")
+    privatize_owned_catalog(db, target.user_id, target.household_id)
     db.delete(target)
     db.commit()
     return Response(status_code=204)
@@ -236,6 +266,7 @@ def leave_household(db: Session = Depends(get_db), user: User = Depends(current_
             db.delete(household)
         db.commit()
         return Response(status_code=204)
+    privatize_owned_catalog(db, user.id, membership.household_id)
     db.delete(membership)
     db.commit()
     return Response(status_code=204)
