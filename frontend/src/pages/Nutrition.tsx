@@ -86,7 +86,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
         name: foodName, basis_g: 100,
         ...Object.fromEntries(keys.map(({ key }) => [key, Number(foodValues[key])])),
       }) });
-      setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" });
+      setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" }); setFoodQuery("");
       await loadFoods("");
     }, "Lebensmittel gespeichert.");
   }
