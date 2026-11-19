@@ -116,12 +116,6 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
       await loadFoods("");
     }, "Lebensmittel wurde archiviert.");
   }
-  async function toggleFood(food: Food) {
-    await runAction(async () => {
-      await api(`/api/nutrition/foods/${food.id}/favorite`, { method: "PATCH", body: JSON.stringify({ is_favorite: !food.is_favorite }) });
-      await loadFoods();
-    }, food.is_favorite ? "Favorit entfernt." : "Als Favorit gespeichert.");
-  }
   async function saveRecipe(e: FormEvent) {
     e.preventDefault();
     const selected = ingredients.filter(item => item.foodId && Number(item.amount) > 0);
