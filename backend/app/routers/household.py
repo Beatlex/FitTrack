@@ -44,6 +44,7 @@ def require_owner(db: Session, user_id: int, household_id: int) -> HouseholdMemb
 
 def share_owned_catalog(db: Session, user_id: int, household_id: int) -> None:
     """Move a member's pre-existing private catalog into their new household."""
+    db.flush()
     db.execute(update(Food).where(
         Food.owner_id == user_id, Food.household_id.is_(None), Food.is_system.is_(False)
     ).values(household_id=household_id, is_shared=True))
