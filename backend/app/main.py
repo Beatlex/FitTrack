@@ -15,15 +15,13 @@ from .dependencies import current_user
 from .models import FoodEntry, Measurement, User
 from . import nutrition_models  # Register nutrition tables before create_all
 from . import household_models  # Register household tables before create_all
-from .household_models import Household, HouseholdMember
 from .schemas import MeasurementCreate, MeasurementUpdate
 from .account_service import delete_account as delete_account_data
+from .migrate_catalog_access import upgrade as migrate_catalog_access
 
 Base.metadata.create_all(bind=engine)
 
 # Additive catalog ACL migration; safe to re-run during application startup.
-from .migrate_catalog_access import upgrade as migrate_catalog_access
-
 migrate_catalog_access()
 password_hasher = PasswordHash.recommended()
 
