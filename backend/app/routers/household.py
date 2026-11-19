@@ -8,7 +8,7 @@ from ..database import get_db
 from ..dependencies import current_user
 from ..household_models import Household, HouseholdInvitation, HouseholdMember
 from ..models import User
-from ..nutrition_models import Food, MealTemplate, MealTemplateIngredient
+from ..nutrition_models import Food, MealTemplate
 from ..catalog_access import (
     grant_owned_catalog_to_household,
     grant_household_catalog_to_member,
