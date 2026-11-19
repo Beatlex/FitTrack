@@ -250,6 +250,7 @@ def test_pre_household_foods_and_recipes_become_shared_after_household_join(clie
 def test_account_deletion_transfers_household_and_preserves_shared_catalog(client: TestClient) -> None:
     register(client, "delete-owner")
     login(client, "delete-owner")
+    assert client.post("/api/household", json={"name": "Delete Owner Household"}).status_code == 201
     food = client.post("/api/nutrition/foods", json={
         "name": "Shared Delete Food", "basis_g": 100, "calories": 90,
         "protein_g": 3, "carbs_g": 12, "fat_g": 2,
@@ -297,6 +298,7 @@ def test_account_deletion_transfers_household_and_preserves_shared_catalog(clien
 def test_account_deletion_keeps_food_as_recipe_dependency_without_general_access(client: TestClient) -> None:
     register(client, "dependency-recipe-owner")
     login(client, "dependency-recipe-owner")
+    assert client.post("/api/household", json={"name": "Dependency Household"}).status_code == 201
     register(client, "dependency-food-owner")
     invitation = client.post("/api/household/invitations", json={
         "username": "dependency-food-owner",
