@@ -18,6 +18,7 @@ class Food(Base):
     carbs_g: Mapped[float] = mapped_column(Float, nullable=False)
     fat_g: Mapped[float] = mapped_column(Float, nullable=False)
     is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 class NutritionGoal(Base):
@@ -56,3 +57,21 @@ class MealIngredient(Base):
     protein_g: Mapped[float] = mapped_column(Float, nullable=False)
     carbs_g: Mapped[float] = mapped_column(Float, nullable=False)
     fat_g: Mapped[float] = mapped_column(Float, nullable=False)
+
+
+class MealTemplate(Base):
+    __tablename__ = "meal_templates"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    meal_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    is_favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MealTemplateIngredient(Base):
+    __tablename__ = "meal_template_ingredients"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    template_id: Mapped[int] = mapped_column(ForeignKey("meal_templates.id", ondelete="CASCADE"), nullable=False, index=True)
+    food_id: Mapped[int] = mapped_column(ForeignKey("foods.id"), nullable=False)
+    amount_g: Mapped[float] = mapped_column(Float, nullable=False)
