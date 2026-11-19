@@ -183,3 +183,15 @@ def remove_member(member_user_id: int, db: Session = Depends(get_db),
     db.delete(target)
     db.commit()
     return Response(status_code=204)
+
+
+@router.delete("/leave", status_code=204)
+def leave_household(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    membership = membership_for_user(db, user.id)
+    if membership is None:
+        raise HTTPException(404, "Haushalt nicht gefunden.")
+    if membership.role == "owner":
+        raise HTTPException(409, "Der Haushaltsinhaber kann den Haushalt nicht verlassen. Eine Eigentümerübergabe wird später ergänzt.")
+    db.delete(membership)
+    db.commit()
+    return Response(status_code=204)
