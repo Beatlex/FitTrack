@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -8,6 +8,7 @@ from ..database import get_db
 from ..dependencies import current_user
 from ..household_models import Household, HouseholdInvitation, HouseholdMember
 from ..models import User
+from ..nutrition_models import Food, MealTemplate
 
 router = APIRouter(prefix="/api/household", tags=["household"])
 
@@ -225,6 +226,13 @@ def leave_household(db: Session = Depends(get_db), user: User = Depends(current_
         if other_member is not None:
             raise HTTPException(409, "Übertrage zuerst die Admin-Rolle an ein anderes Mitglied.")
         if household is not None:
+            # Preserve catalog entries as private records owned by their creators.
+            db.execute(update(Food).where(Food.household_id == household.id).values(
+                household_id=None, is_shared=False
+            ))
+            db.execute(update(MealTemplate).where(MealTemplate.household_id == household.id).values(
+                household_id=None, is_shared=False
+            ))
             db.delete(household)
         db.commit()
         return Response(status_code=204)
