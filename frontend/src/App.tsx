@@ -164,7 +164,7 @@ export default function App() {
         <small className="menu-label">MENÜ</small>
         <nav aria-label="Hauptnavigation">
           {navigation.map(({ name, icon: Icon }) => (
-            <button key={name} className={section === name ? "selected" : ""} onClick={() => { setSection(name); setError(""); setNotice(""); }}>
+            <button key={name} className={section === name ? "selected" : ""} onClick={() => { setSection(name); setError(""); setNotice(""); if (name === "Übersicht") void refreshDashboard().catch((err: Error) => setError(err.message)); }}>
               <Icon size={18} />{name}
             </button>
           ))}
