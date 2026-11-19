@@ -40,14 +40,18 @@ The current catalog uses `household_id` as the visibility boundary. This is suff
 3. **Complete:** Personal hide/restore endpoints and safe removal behavior for shared records.
 4. **Complete:** Password- and username-confirmed account deletion with household-owner transfer, shared recipe ownership transfer, personal-data cleanup, and dependency retention.
 5. **Complete:** Frontend controls for personal food/recipe hide and restore.
-6. **Remaining:** Frontend account-deletion flow; dedicated per-item grant/revoke controls; audit metadata and simultaneous-edit conflict handling.
-7. **Follow-up:** Timezone standardization and database backup/migration operations.
+6. **Complete:** Household-admin permission matrix for granting/revoking individual food and recipe access. Recipe grants include only contextual ingredient-resolution grants; they do not expose ingredients in the general food picker.
+7. **Complete:** Frontend account-deletion flow with current-password verification, exact username confirmation, and a final irreversible-action confirmation.
+8. **Remaining:** Audit metadata and simultaneous-edit conflict handling.
+9. **Follow-up:** Timezone standardization and database backup/migration operations.
 
 ## Security and integrity requirements
 
 - Unique constraints prevent duplicate grants and hidden markers.
 - Contextual ingredient grants never imply general catalog visibility.
-- All grant mutations are server-side and require household membership or explicit user action.
+- Grant management is restricted to the authenticated household owner; target users and catalog records must belong to that same household.
+- The household owner and the creator of a catalog record cannot have their access revoked through member-level controls.
+- Recipe grant/revoke operations create or remove only the corresponding recipe-scoped ingredient grants.
 - No polymorphic foreign key or JSON/array of user IDs is used.
 - Database foreign keys and transaction boundaries protect recipe-to-food dependencies.
 - Tests cover cross-user IDOR attempts, revoked access, member departure, account deletion, and retained shared dependencies.
