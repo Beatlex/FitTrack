@@ -75,3 +75,6 @@ Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debi
 
 ## Geplante Ausbaustufen
 Alembic als versioniertes Migrationssystem, Eigentümerübergabe und Haushaltsrollen, vollständige Ernährungshistorie mit Bearbeiten/Löschen, externe Lebensmitteldatenbank, Statistiken, Wochenplan, Einkaufsplan und automatische Backups.
+
+- Beim Erstellen eines Haushalts werden bereits vorhandene eigene Lebensmittel und Gerichte des Erstellers in den Haushalt übernommen. Bei Annahme einer Einladung werden auch die bisherigen eigenen Katalogeinträge des beitretenden Benutzers geteilt. Beim Verlassen oder Entfernen werden eigene Einträge wieder privat; Lebensmittel, die von Rezepten verbleibender Mitglieder benötigt werden, bleiben für den Haushalt verfügbar.
+- Die Dashboard-Übersicht zeigt die letzten 30 Gewichtsmessungen aus dem persönlichen Körperwerte-Verlauf.
