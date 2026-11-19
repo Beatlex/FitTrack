@@ -3,7 +3,7 @@ import { ArrowLeft, Heart, Pencil, Plus, Save, Search, Trash2, Utensils } from "
 import { api } from "../services/api";
 
 type Values = { calories: number; protein_g: number; carbs_g: number; fat_g: number };
-type Food = Values & { id: number; name: string; basis_g: number; brand: string | null; is_favorite: boolean; is_system: boolean };
+type Food = Values & { id: number; name: string; basis_g: number; brand: string | null; is_system: boolean };
 type Ingredient = Values & { id?: number; food_id: number; food_name: string; amount_g: number };
 type Entry = Values & { id: number; food_name: string; amount_g: number; meal_type: string; ingredients: Ingredient[] };
 type Daily = { goals: Values | null; consumed: Values; remaining: Values | null; entries: Entry[] };
@@ -209,7 +209,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
 
     {view === "recipes" && <>
       <section className="panel">
-        <div className="panel-heading"><div><h2>Deine Gerichte</h2><p>Gespeicherte Mahlzeiten auswählen oder eigene Rezepte erstellen.</p></div>
+        <div className="panel-heading"><div><h2>Deine Gerichte</h2><p>Gemeinsame Gerichte für beide Benutzer. Favoriten bleiben pro Benutzer privat.</p></div>
           <button className="primary" onClick={() => setView("foods")}><Plus size={16}/> Lebensmittel verwalten</button></div>
         <div className="nutrition-tools"><div className="nutrition-search"><Search size={16}/><input placeholder="Gericht suchen" value={recipeQuery} onChange={e => { setRecipeQuery(e.target.value); void loadRecipes(e.target.value); }}/></div>
           <label className="favorite-filter"><input type="checkbox" checked={favoritesOnly} onChange={e => { setFavoritesOnly(e.target.checked); void loadRecipes(recipeQuery, e.target.checked); }}/> Nur Favoriten</label></div>
@@ -236,9 +236,9 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
 
     {view === "foods" && <>
       <section className="panel">
-        <div className="panel-heading"><div><h2>Lebensmittel</h2><p>Einmal anlegen, beliebig oft in verschiedenen Gerichten verwenden.</p></div><button className="secondary-button" onClick={() => setView("recipes")}><ArrowLeft size={15}/> Zurück zu Gerichten</button></div>
+        <div className="panel-heading"><div><h2>Lebensmittel</h2><p>Gemeinsamer Lebensmittelkatalog für beide Benutzer. Einmal anlegen, beliebig oft wiederverwenden.</p></div><button className="secondary-button" onClick={() => setView("recipes")}><ArrowLeft size={15}/> Zurück zu Gerichten</button></div>
         <div className="food-editor-toggle">
-          <div><b>{editingFoodId !== null ? "Lebensmittel bearbeiten" : "Neues Lebensmittel"}</b><small>Stammdaten und Nährwerte je 100 g</small></div>
+          <div><b>{editingFoodId !== null ? "Lebensmittel bearbeiten" : "Neues Lebensmittel"}</b><small>Für beide Benutzer verfügbar · Nährwerte je 100 g</small></div>
           <button className="secondary-button" type="button" onClick={() => { setFoodEditorOpen(value => !value); if (foodEditorOpen) { setEditingFoodId(null); setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" }); } }}>
             <Plus size={15}/> {foodEditorOpen ? "Einklappen" : "Lebensmittel anlegen"}
           </button>
