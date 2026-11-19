@@ -336,6 +336,11 @@ def test_personal_hide_restore_and_recipe_dependency_access_are_separate(client:
     visible_recipe = client.get("/api/nutrition/recipes?q=ACL").json()
     assert len(visible_recipe) == 1
     assert visible_recipe[0]["ingredients"][0]["food_name"] == "ACL Hafer"
+    retained_edit = client.put(f"/api/nutrition/recipes/{recipe['id']}", json={
+        "name": "ACL Frühstück", "meal_type": "breakfast",
+        "ingredients": [{"food_id": food["id"], "amount_g": 50}],
+    })
+    assert retained_edit.status_code == 200
     assert client.post(f"/api/nutrition/recipes/{recipe['id']}/log").status_code == 201
 
     assert client.delete(f"/api/nutrition/foods/{food['id']}/hide").status_code == 204
