@@ -320,15 +320,20 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
 def set_recipe_favorite(recipe_id: int, data: FavoriteUpdate, db: Session = Depends(get_db),
                         user: User = Depends(current_user)):
     template = db.scalar(select(MealTemplate).where(
-        MealTemplate.id == recipe_id, MealTemplate.owner_id == user.id
+        MealTemplate.id == recipe_id, or_(MealTemplate.is_shared.is_(True), MealTemplate.owner_id == user.id)
     ))
     if template is None:
         raise HTTPException(404, "Gericht nicht gefunden.")
-    template.is_favorite = data.is_favorite
+    favorite = db.scalar(select(MealTemplateFavorite).where(
+        MealTemplateFavorite.user_id == user.id, MealTemplateFavorite.template_id == recipe_id
+    ))
+    if data.is_favorite and favorite is None:
+        db.add(MealTemplateFavorite(user_id=user.id, template_id=recipe_id))
+    elif not data.is_favorite and favorite is not None:
+        db.delete(favorite)
     db.commit()
     db.refresh(template)
     return recipe_dict(template, db, user.id)
-
 
 @router.post("/recipes/{recipe_id}/log", status_code=201)
 def log_recipe(recipe_id: int, db: Session = Depends(get_db),
