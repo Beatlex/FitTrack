@@ -40,9 +40,6 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [section, setSection] = useState("Übersicht");
   const [weight, setWeight] = useState("");
-  const [foodName, setFoodName] = useState("");
-  const [calories, setCalories] = useState("");
-  const [protein, setProtein] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -112,28 +109,6 @@ export default function App() {
     }
   }
 
-  async function addFood(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    setNotice("");
-    try {
-      await api("/api/food", {
-        method: "POST",
-        body: JSON.stringify({
-          food_name: foodName,
-          calories: Number(calories),
-          protein_g: Number(protein || 0),
-        }),
-      });
-      setFoodName("");
-      setCalories("");
-      setProtein("");
-      await refreshDashboard();
-      setNotice("Lebensmittel wurde gespeichert.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Eintrag konnte nicht gespeichert werden.");
-    }
-  }
 
   async function logout() {
     try {
@@ -233,15 +208,13 @@ export default function App() {
                 <input type="number" step="0.1" min="1" max="500" placeholder="Gewicht in kg" value={weight} onChange={(event) => setWeight(event.target.value)} required />
                 <button className="primary" type="submit"><Plus /> Speichern</button>
               </form>
-              <form className="panel" onSubmit={addFood}>
+              <section className="panel overview-nutrition-link">
                 <h3><Apple /> Ernährung erfassen</h3>
-                <input placeholder="Lebensmittel" maxLength={160} value={foodName} onChange={(event) => setFoodName(event.target.value)} required />
-                <div className="twocol">
-                  <input type="number" min="0" placeholder="kcal" value={calories} onChange={(event) => setCalories(event.target.value)} required />
-                  <input type="number" min="0" placeholder="Protein (g)" value={protein} onChange={(event) => setProtein(event.target.value)} />
-                </div>
-                <button className="primary" type="submit">Eintrag speichern <Plus /></button>
-              </form>
+                <p>Wähle ein gespeichertes Gericht oder erstelle ein neues Rezept mit Zutaten. So bleiben deine Tageswerte und Nährwert-Snapshots konsistent.</p>
+                <button className="primary" type="button" onClick={() => { setSection("Ernährung"); setError(""); setNotice(""); }}>
+                  Zur Ernährungsübersicht <Plus />
+                </button>
+              </section>
             </div>
           </>
         ) : (
