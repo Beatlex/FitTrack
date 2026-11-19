@@ -20,6 +20,8 @@ class Food(Base):
     is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Shared by the two current household accounts; replace with explicit ACLs later.
+    is_shared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 class NutritionGoal(Base):
@@ -67,6 +69,7 @@ class MealTemplate(Base):
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     meal_type: Mapped[str] = mapped_column(String(20), nullable=False)
     is_favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_shared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
