@@ -21,6 +21,9 @@ class FoodCreate(Nutrients):
             raise ValueError("Lebensmittelname darf nicht leer sein.")
         return value
 
+class FoodUpdate(FoodCreate):
+    pass
+
 class GoalUpdate(Nutrients):
     pass
 
@@ -55,3 +58,26 @@ class MealCreate(BaseModel):
         if (self.food_id is None) != (self.amount_g is None):
             raise ValueError("Lebensmittel und Menge müssen gemeinsam angegeben werden.")
         return self
+
+class RecipeCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=160)
+    meal_type: str = Field(pattern="^(breakfast|lunch|dinner|snack)$")
+    ingredients: list[MealIngredientInput] = Field(min_length=1, max_length=30)
+
+    @field_validator("name")
+    @classmethod
+    def clean_recipe_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Gerichtname darf nicht leer sein.")
+        return value
+
+
+class RecipeUpdate(RecipeCreate):
+    pass
+
+
+class FavoriteUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    is_favorite: bool
