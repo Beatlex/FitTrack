@@ -4,7 +4,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import User
-from ..nutrition_models import Food, MealEntry, MealIngredient, MealTemplate, MealTemplateIngredient, NutritionGoal
+from ..nutrition_models import Food, MealEntry, MealIngredient, MealTemplate, MealTemplateFavorite, MealTemplateIngredient, NutritionGoal
 from ..nutrition_schemas import FavoriteUpdate, FoodCreate, FoodUpdate, GoalUpdate, MealCreate, RecipeCreate, RecipeUpdate
 from ..dependencies import current_user
 
@@ -203,7 +203,7 @@ def recipe_dict(template: MealTemplate, db: Session, user_id: int) -> dict:
         ingredients.append({"food_id": food.id, "food_name": food.name,
                             "amount_g": row.amount_g, **nutrients})
     return {"id": template.id, "name": template.name, "meal_type": template.meal_type,
-            "is_favorite": template.is_favorite, "ingredients": ingredients,
+            "is_favorite": db.scalar(select(MealTemplateFavorite.id).where(MealTemplateFavorite.user_id == user_id, MealTemplateFavorite.template_id == template.id)) is not None, "ingredients": ingredients,
             "amount_g": round(sum(item["amount_g"] for item in ingredients), 2),
             **{key: round(value, 2) for key, value in totals.items()}}
 
@@ -215,9 +215,9 @@ def list_recipes(q: str = Query(default="", max_length=100), favorites_only: boo
     if q.strip():
         statement = statement.where(MealTemplate.name.ilike(f"%{q.strip()}%"))
     if favorites_only:
-        statement = statement.where(MealTemplate.is_favorite.is_(True))
+        statement = statement.where(MealTemplate.id.in_(select(MealTemplateFavorite.template_id).where(MealTemplateFavorite.user_id == user.id)))
     templates = db.scalars(statement.order_by(
-        MealTemplate.is_favorite.desc(), MealTemplate.name, MealTemplate.id
+        MealTemplate.name, MealTemplate.id
     ).limit(100)).all()
     if not templates:
         return []
@@ -231,6 +231,7 @@ def list_recipes(q: str = Query(default="", max_length=100), favorites_only: boo
     by_template: dict[int, list[MealTemplateIngredient]] = {}
     for row in rows:
         by_template.setdefault(row.template_id, []).append(row)
+    favorite_ids = set(db.scalars(select(MealTemplateFavorite.template_id).where(MealTemplateFavorite.user_id == user.id)).all())
     result = []
     for template in templates:
         ingredients = []
@@ -246,9 +247,10 @@ def list_recipes(q: str = Query(default="", max_length=100), favorites_only: boo
             ingredients.append({"food_id": food.id, "food_name": food.name,
                                 "amount_g": row.amount_g, **nutrients})
         result.append({"id": template.id, "name": template.name, "meal_type": template.meal_type,
-            "is_favorite": template.is_favorite, "ingredients": ingredients,
+            "is_favorite": template.id in favorite_ids, "ingredients": ingredients,
             "amount_g": round(sum(item["amount_g"] for item in ingredients), 2),
             **{key: round(value, 2) for key, value in totals.items()}})
+    result.sort(key=lambda item: (not item["is_favorite"], item["name"].casefold(), item["id"]))
     return result
 
 
