@@ -101,9 +101,10 @@ def test_invitation_authorization_duplicate_and_owner_protection(client: TestCli
 
     client.post("/api/auth/logout")
     login(client, "member-account")
-    assert client.delete("/api/household/members/1").status_code == 403
+    assert client.delete("/api/household/members/1").status_code == 404
     assert client.delete("/api/household/leave").status_code == 404
     assert client.post(f"/api/household/invitations/{invitation.json()['id']}/accept").status_code == 200
+    assert client.delete("/api/household/members/1").status_code == 403
     assert client.delete("/api/household/leave").status_code == 204
 
     client.post("/api/auth/logout")
