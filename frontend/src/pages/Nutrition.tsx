@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { ArrowLeft, Heart, Plus, Save, Search, Trash2, Utensils } from "lucide-react";
+import { ArrowLeft, Heart, Pencil, Plus, Save, Search, Trash2, Utensils } from "lucide-react";
 import { api } from "../services/api";
 
 type Values = { calories: number; protein_g: number; carbs_g: number; fat_g: number };
@@ -46,8 +46,11 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
   const [recipeQuery, setRecipeQuery] = useState("");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [foodName, setFoodName] = useState("");
+  const [foodEditorOpen, setFoodEditorOpen] = useState(false);
+  const [editingFoodId, setEditingFoodId] = useState<number | null>(null);
   const [foodValues, setFoodValues] = useState({ calories: "", protein_g: "", carbs_g: "", fat_g: "" });
   const [recipeName, setRecipeName] = useState("");
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [recipeType, setRecipeType] = useState("breakfast");
   const [ingredients, setIngredients] = useState<IngredientDraft[]>([{ foodId: "", amount: "50" }]);
   const [error, setError] = useState("");
@@ -79,16 +82,38 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
     e.preventDefault();
     await runAction(async () => { await api("/api/nutrition/goals", { method: "PUT", body: JSON.stringify(goals) }); await loadDay(); await onDataChanged(); }, "Tagesziele gespeichert.");
   }
-  async function addFood(e: FormEvent) {
+  async function saveFood(e: FormEvent) {
     e.preventDefault();
+    const payload = {
+      name: foodName.trim(), basis_g: 100,
+      ...Object.fromEntries(keys.map(({ key }) => [key, Number(foodValues[key])])),
+    };
     await runAction(async () => {
-      await api("/api/nutrition/foods", { method: "POST", body: JSON.stringify({
-        name: foodName, basis_g: 100,
-        ...Object.fromEntries(keys.map(({ key }) => [key, Number(foodValues[key])])),
-      }) });
-      setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" }); setFoodQuery("");
+      if (editingFoodId !== null) {
+        await api(`/api/nutrition/foods/${editingFoodId}`, { method: "PUT", body: JSON.stringify(payload) });
+      } else {
+        const matches = await api<Food[]>(`/api/nutrition/foods?q=${encodeURIComponent(payload.name)}`);
+        const existing = matches.find(item => item.name.trim().toLocaleLowerCase() === payload.name.toLocaleLowerCase());
+        if (existing && !window.confirm(`„${existing.name}“ ist bereits vorhanden. Soll dieses Lebensmittel mit den neuen Nährwerten aktualisiert werden?`)) return;
+        if (existing) await api(`/api/nutrition/foods/${existing.id}`, { method: "PUT", body: JSON.stringify(payload) });
+        else await api("/api/nutrition/foods", { method: "POST", body: JSON.stringify(payload) });
+      }
+      setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" });
+      setEditingFoodId(null); setFoodQuery(""); setFoodEditorOpen(false);
       await loadFoods("");
-    }, "Lebensmittel gespeichert.");
+    }, editingFoodId !== null ? "Lebensmittel aktualisiert." : "Lebensmittel gespeichert oder aktualisiert.");
+  }
+  function editFood(food: Food) {
+    setEditingFoodId(food.id); setFoodName(food.name);
+    setFoodValues(Object.fromEntries(keys.map(({ key }) => [key, String(food[key])])) as typeof foodValues);
+    setFoodEditorOpen(true);
+  }
+  async function archiveFood(food: Food) {
+    if (!window.confirm(`„${food.name}“ aus der Lebensmittelauswahl entfernen? Bereits gespeicherte Mahlzeiten und Gerichte bleiben erhalten.`)) return;
+    await runAction(async () => {
+      await api(`/api/nutrition/foods/${food.id}`, { method: "DELETE" });
+      await loadFoods("");
+    }, "Lebensmittel wurde archiviert.");
   }
   async function toggleFood(food: Food) {
     await runAction(async () => {
@@ -96,18 +121,24 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
       await loadFoods();
     }, food.is_favorite ? "Favorit entfernt." : "Als Favorit gespeichert.");
   }
-  async function createRecipe(e: FormEvent) {
+  async function saveRecipe(e: FormEvent) {
     e.preventDefault();
     const selected = ingredients.filter(item => item.foodId && Number(item.amount) > 0);
     if (!recipeName.trim() || !selected.length) { setError("Bitte einen Namen und mindestens eine Zutat auswählen."); return; }
     await runAction(async () => {
-      await api("/api/nutrition/recipes", { method: "POST", body: JSON.stringify({
-        name: recipeName.trim(), meal_type: recipeType,
-        ingredients: selected.map(item => ({ food_id: Number(item.foodId), amount_g: Number(item.amount) })),
-      }) });
-      setRecipeName(""); setIngredients([{ foodId: "", amount: "50" }]);
-      await loadRecipes("", false); setFavoritesOnly(false); setRecipeQuery(""); setView("recipes");
-    }, "Gericht wurde gespeichert.");
+      const payload = { name: recipeName.trim(), meal_type: recipeType,
+        ingredients: selected.map(item => ({ food_id: Number(item.foodId), amount_g: Number(item.amount) })) };
+      if (editingRecipe) await api(`/api/nutrition/recipes/${editingRecipe.id}`, { method: "PUT", body: JSON.stringify(payload) });
+      else await api("/api/nutrition/recipes", { method: "POST", body: JSON.stringify(payload) });
+      setRecipeName(""); setRecipeType("breakfast"); setIngredients([{ foodId: "", amount: "50" }]);
+      setEditingRecipe(null); await loadRecipes("", false); setFavoritesOnly(false); setRecipeQuery(""); setView("recipes");
+    }, editingRecipe ? "Gericht wurde aktualisiert." : "Gericht wurde gespeichert.");
+  }
+  function editRecipe(recipe: Recipe) {
+    setEditingRecipe(recipe); setRecipeName(recipe.name); setRecipeType(recipe.meal_type);
+    setIngredients(recipe.ingredients.map(item => ({ foodId: String(item.food_id), amount: String(item.amount_g) })));
+    setView("recipes");
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
   }
   async function toggleRecipe(recipe: Recipe) {
     await runAction(async () => {
@@ -183,11 +214,11 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
         <div className="nutrition-tools"><div className="nutrition-search"><Search size={16}/><input placeholder="Gericht suchen" value={recipeQuery} onChange={e => { setRecipeQuery(e.target.value); void loadRecipes(e.target.value); }}/></div>
           <label className="favorite-filter"><input type="checkbox" checked={favoritesOnly} onChange={e => { setFavoritesOnly(e.target.checked); void loadRecipes(recipeQuery, e.target.checked); }}/> Nur Favoriten</label></div>
         {!recipes.length ? <div className="nutrition-empty"><Utensils/><p>Noch keine Gerichte gespeichert.</p><span>Erstelle dein erstes Gericht aus vorhandenen Lebensmitteln.</span></div> :
-          <div className="recipe-cards">{recipes.map(recipe => <RecipeCard key={recipe.id} recipe={recipe} busy={busy} onLog={() => void logRecipe(recipe)} onFavorite={() => void toggleRecipe(recipe)} onDelete={() => void deleteRecipe(recipe)}/>)}</div>}
+          <div className="recipe-cards">{recipes.map(recipe => <RecipeCard key={recipe.id} recipe={recipe} busy={busy} onLog={() => void logRecipe(recipe)} onFavorite={() => void toggleRecipe(recipe)} onDelete={() => void deleteRecipe(recipe)} onEdit={() => editRecipe(recipe)}/>)}</div>}
       </section>
       <section className="panel recipe-create-panel">
-        <div className="panel-heading"><div><h2>Neues Gericht erstellen</h2><p>Verwende vorhandene Lebensmittel und speichere das Rezept für später.</p></div></div>
-        <form className="nutrition-recipe-form" onSubmit={createRecipe}>
+        <div className="panel-heading"><div><h2>{editingRecipe ? "Gericht bearbeiten" : "Neues Gericht erstellen"}</h2><p>Verwende vorhandene Lebensmittel und speichere das Rezept für später.</p></div></div>
+        <form className="nutrition-recipe-form" onSubmit={saveRecipe}>
           <div className="recipe-meta"><label>Gerichtname<input required maxLength={160} value={recipeName} onChange={e => setRecipeName(e.target.value)} placeholder="z. B. Overnight Oats"/></label>
             <label>Typ<select value={recipeType} onChange={e => setRecipeType(e.target.value)}><option value="breakfast">Frühstück</option><option value="lunch">Mittagessen</option><option value="dinner">Abendessen</option><option value="snack">Snack</option></select></label></div>
           <div className="recipe-ingredients"><div className="recipe-ingredients-heading"><b>Zutaten</b><span>{ingredients.length} / 30</span></div>
@@ -198,7 +229,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
             </div>)}
             <button type="button" className="add-ingredient" disabled={busy || ingredients.length >= 30} onClick={() => setIngredients(current => [...current, { foodId: "", amount: "50" }])}><Plus size={15}/> Zutat hinzufügen</button>
           </div>
-          <button className="primary" disabled={busy || foods.length === 0}><Save size={16}/> Gericht speichern</button>
+          <div className="recipe-form-actions"><button className="primary" disabled={busy || foods.length === 0}><Save size={16}/> {editingRecipe ? "Änderungen speichern" : "Gericht speichern"}</button>{editingRecipe && <button type="button" className="secondary-button" onClick={() => { setEditingRecipe(null); setRecipeName(""); setIngredients([{ foodId: "", amount: "50" }]); }}>Abbrechen</button>}</div>
         </form>
       </section>
     </>}
@@ -206,32 +237,40 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
     {view === "foods" && <>
       <section className="panel">
         <div className="panel-heading"><div><h2>Lebensmittel</h2><p>Einmal anlegen, beliebig oft in verschiedenen Gerichten verwenden.</p></div><button className="secondary-button" onClick={() => setView("recipes")}><ArrowLeft size={15}/> Zurück zu Gerichten</button></div>
-        <div className="nutrition-tools"><div className="nutrition-search"><Search size={16}/><input placeholder="Lebensmittel suchen" value={foodQuery} onChange={e => { setFoodQuery(e.target.value); void loadFoods(e.target.value); }}/></div></div>
-        {!foods.length ? <div className="nutrition-empty"><p>Noch keine Lebensmittel gespeichert.</p></div> :
-          <div className="food-list">{foods.map(food => <article className="food-row" key={food.id}><div><b>{food.name}</b><small>Je {n(food.basis_g)} g · {n(food.calories)} kcal · P {n(food.protein_g)} g · KH {n(food.carbs_g)} g · F {n(food.fat_g)} g</small></div>
-            {!food.is_system && <button className={food.is_favorite ? "favorite-button active" : "favorite-button"} aria-label={food.is_favorite ? "Favorit entfernen" : "Als Favorit markieren"} disabled={busy} onClick={() => void toggleFood(food)}><Heart size={17} fill={food.is_favorite ? "currentColor" : "none"}/></button>}</article>)}</div>}
+        <div className="food-editor-toggle">
+          <div><b>{editingFoodId !== null ? "Lebensmittel bearbeiten" : "Neues Lebensmittel"}</b><small>Stammdaten und Nährwerte je 100 g</small></div>
+          <button className="secondary-button" type="button" onClick={() => { setFoodEditorOpen(value => !value); if (foodEditorOpen) { setEditingFoodId(null); setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" }); } }}>
+            <Plus size={15}/> {foodEditorOpen ? "Einklappen" : "Lebensmittel anlegen"}
+          </button>
+        </div>
+        {foodEditorOpen && <form className="food-editor-form" onSubmit={saveFood}>
+          <label className="food-name-field">Name<input required maxLength={160} value={foodName} onChange={e => setFoodName(e.target.value)}/></label>
+          <div className="nutrition-grid">{keys.map(({ key, label, unit }) => <label key={key}>{label} ({unit} je 100 g)<input type="number" min="0" max="10000" step="0.1" required value={foodValues[key]} onChange={e => setFoodValues({ ...foodValues, [key]: e.target.value })}/></label>)}</div>
+          <div className="recipe-form-actions"><button className="primary" disabled={busy}><Save size={16}/> {editingFoodId !== null ? "Änderungen speichern" : "Lebensmittel speichern"}</button>
+            <button type="button" className="secondary-button" onClick={() => { setFoodEditorOpen(false); setEditingFoodId(null); setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" }); }}>Abbrechen</button></div>
+        </form>}
       </section>
       <section className="panel">
-        <div className="panel-heading"><div><h2>Neues Lebensmittel</h2><p>Nur neue Zutaten anlegen – bereits vorhandene Lebensmittel wiederverwenden.</p></div></div>
-        <form onSubmit={addFood}><label className="food-name-field">Name<input required maxLength={160} value={foodName} onChange={e => setFoodName(e.target.value)}/></label>
-          <div className="nutrition-grid">{keys.map(({ key, label, unit }) => <label key={key}>{label} ({unit} je 100 g)<input type="number" min="0" max="10000" step="0.1" required value={foodValues[key]} onChange={e => setFoodValues({ ...foodValues, [key]: e.target.value })}/></label>)}</div>
-          <button className="primary" disabled={busy}><Plus size={16}/> Lebensmittel speichern</button>
-        </form>
+        <div className="nutrition-tools"><div className="nutrition-search"><Search size={16}/><input placeholder="Lebensmittel suchen" value={foodQuery} onChange={e => { setFoodQuery(e.target.value); void loadFoods(e.target.value); }}/></div></div>
+        {!foods.length ? <div className="nutrition-empty"><p>Keine Lebensmittel gefunden.</p></div> :
+          <div className="food-list">{foods.map(food => <article className="food-row" key={food.id}><div><b>{food.name}</b><small>Je {n(food.basis_g)} g · {n(food.calories)} kcal · P {n(food.protein_g)} g · KH {n(food.carbs_g)} g · F {n(food.fat_g)} g</small></div>
+            <div className="food-actions"><button className="icon-action" aria-label={`${food.name} bearbeiten`} disabled={busy} onClick={() => editFood(food)}><Pencil size={16}/></button>
+              <button className="icon-action danger" aria-label={`${food.name} löschen`} disabled={busy} onClick={() => void archiveFood(food)}><Trash2 size={16}/></button></div></article>)}</div>}
       </section>
-    </>}
+    </>}}
     {error && <p className="form-message error-message" role="alert">{error}</p>}
     {notice && <p className="form-message success-message" role="status">{notice}</p>}
   </div>;
 }
 
-function RecipeCard({ recipe, busy, onLog, onFavorite, onDelete }: {
-  recipe: Recipe; busy: boolean; onLog: () => void; onFavorite: () => void; onDelete?: () => void;
+function RecipeCard({ recipe, busy, onLog, onFavorite, onDelete, onEdit }: {
+  recipe: Recipe; busy: boolean; onLog: () => void; onFavorite: () => void; onDelete?: () => void; onEdit?: () => void;
 }) {
   return <article className="recipe-card">
     <div className="recipe-card-heading"><div><h3>{recipe.name}</h3><small>{mealLabels[recipe.meal_type] ?? recipe.meal_type} · {recipe.ingredients.length} Zutaten · {n(recipe.amount_g)} g</small></div>
       <button className={recipe.is_favorite ? "favorite-button active" : "favorite-button"} aria-label={recipe.is_favorite ? "Favorit entfernen" : "Als Favorit markieren"} disabled={busy} onClick={onFavorite}><Heart size={17} fill={recipe.is_favorite ? "currentColor" : "none"}/></button></div>
     <ul>{recipe.ingredients.map((item, i) => <li key={item.id ?? item.food_id + "-" + i}>{item.food_name} · {n(item.amount_g)} g</li>)}</ul>
     <p className="recipe-nutrients">{n(recipe.calories)} kcal · P {n(recipe.protein_g)} g · KH {n(recipe.carbs_g)} g · F {n(recipe.fat_g)} g</p>
-    <div className="recipe-card-actions"><button className="primary" disabled={busy} onClick={onLog}><Plus size={15}/> Heute eintragen</button>{onDelete && <button className="ingredient-remove" disabled={busy} aria-label="Gericht löschen" onClick={onDelete}><Trash2 size={15}/></button>}</div>
+    <div className="recipe-card-actions">{onEdit && <button className="icon-action" aria-label={`${recipe.name} bearbeiten`} disabled={busy} onClick={onEdit}><Pencil size={16}/></button>}<button className="primary" disabled={busy} onClick={onLog}><Plus size={15}/> Heute eintragen</button>{onDelete && <button className="icon-action danger" disabled={busy} aria-label="Gericht löschen" onClick={onDelete}><Trash2 size={15}/></button>}</div>
   </article>;
 }
