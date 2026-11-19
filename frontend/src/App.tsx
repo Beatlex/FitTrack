@@ -18,6 +18,7 @@ import Nutrition from "./pages/Nutrition";
 import HouseholdPage from "./pages/Household";
 
 type User = { id: number; username: string };
+type WeightPoint = { id: number; measured_at: string; weight_kg: number | null };
 type DashboardData = {
   username: string;
   today: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
@@ -38,6 +39,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [nutritionToday, setNutritionToday] = useState<NutritionOverview | null>(null);
+  const [weightHistory, setWeightHistory] = useState<WeightPoint[]>([]);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -49,12 +51,14 @@ export default function App() {
   async function refreshDashboard() {
     const day = new Date();
     const localDate = new Date(day.getTime() - day.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-    const [data, nutrition] = await Promise.all([
+    const [data, nutrition, measurements] = await Promise.all([
       api<DashboardData>("/api/dashboard"),
       api<NutritionOverview>(`/api/nutrition/day?day=${localDate}`),
+      api<WeightPoint[]>("/api/measurements"),
     ]);
     setDashboard(data);
     setNutritionToday(nutrition);
+    setWeightHistory(measurements.filter((item) => item.weight_kg != null).slice(0, 30).reverse());
   }
 
   useEffect(() => {
@@ -119,6 +123,7 @@ export default function App() {
       setUser(null);
       setDashboard(null);
       setNutritionToday(null);
+      setWeightHistory([]);
       setSection("Übersicht");
       setError("");
       setNotice("");
@@ -185,6 +190,7 @@ export default function App() {
               <div><small>SCHÖN, DASS DU DA BIST</small><h2>Bleib dran, {user.username}.</h2><p>Kleine Schritte. Sichtbare Fortschritte.</p></div>
               <Dumbbell size={48} />
             </section>
+            <DashboardWeightTrend points={weightHistory} />
             <h3>Dein heutiger Überblick</h3>
             <div className="nutrition-totals dashboard-nutrition">
               {([{key:"calories",label:"Kalorien",unit:"kcal"},{key:"protein_g",label:"Protein",unit:"g"},{key:"carbs_g",label:"Kohlenhydrate",unit:"g"},{key:"fat_g",label:"Fett",unit:"g"}] as const).map(({key,label,unit}) => {
@@ -240,5 +246,39 @@ function Metric({ icon: Icon, label, value, unit }: { icon: LucideIcon; label: s
       <strong>{Math.round(value)}<small>{unit}</small></strong>
       <div className="bar"><span /></div>
     </article>
+  );
+}
+
+
+function DashboardWeightTrend({ points }: { points: WeightPoint[] }) {
+  const values = points.map((point) => point.weight_kg as number);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(max - min, 1);
+  const width = 720, height = 150, left = 44, right = 18, top = 16, bottom = 28;
+  const x = (index: number) => left + (points.length < 2 ? 0 : index / (points.length - 1)) * (width - left - right);
+  const y = (value: number) => top + ((max + range * 0.15 - value) / (range * 1.3)) * (height - top - bottom);
+  const polyline = points.map((point, index) => `${x(index)},${y(point.weight_kg as number)}`).join(" ");
+  const latest = points.at(-1);
+  return (
+    <section className="panel dashboard-weight-trend">
+      <div className="panel-heading">
+        <div><h2>Gewichtsverlauf</h2><p>Deine letzten {points.length} Gewichtsmessungen</p></div>
+        {latest?.weight_kg != null && <strong className="dashboard-weight-current">{latest.weight_kg.toLocaleString("de-DE", { maximumFractionDigits: 1 })} kg</strong>}
+      </div>
+      {points.length === 0 ? <div className="dashboard-weight-empty">Noch keine Gewichtsmessungen vorhanden.</div> :
+        points.length === 1 ? <div className="dashboard-weight-empty">Dein erster Messwert: <b>{points[0].weight_kg} kg</b>. Weitere Einträge zeigen hier deinen Verlauf.</div> :
+        <div className="dashboard-weight-chart"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Gewichtsverlauf der letzten 30 Messungen">
+          {[0,1,2].map((step) => {
+            const value = max + range * 0.15 - (range * 1.3 * step) / 2;
+            const position = y(value);
+            return <g key={step}><line x1={left} x2={width-right} y1={position} y2={position} className="chart-grid"/><text x={left-8} y={position+4} textAnchor="end" className="chart-label">{value.toLocaleString("de-DE",{maximumFractionDigits:1})}</text></g>;
+          })}
+          <polyline points={polyline} className="chart-line"/>
+          {points.map((point,index)=><circle key={point.id} cx={x(index)} cy={y(point.weight_kg as number)} r="4" className="chart-point"><title>{new Date(point.measured_at).toLocaleDateString("de-DE")}: {point.weight_kg} kg</title></circle>)}
+          <text x={left} y={height-5} className="chart-label">{new Date(points[0].measured_at).toLocaleDateString("de-DE")}</text>
+          <text x={width-right} y={height-5} textAnchor="end" className="chart-label">{new Date(points[points.length-1].measured_at).toLocaleDateString("de-DE")}</text>
+        </svg></div>}
+    </section>
   );
 }
