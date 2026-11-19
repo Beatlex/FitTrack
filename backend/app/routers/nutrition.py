@@ -118,11 +118,8 @@ def update_food(food_id: int, data: FoodUpdate, db: Session = Depends(get_db),
 @router.delete("/foods/{food_id}", status_code=204)
 def archive_food(food_id: int, db: Session = Depends(get_db),
                  user: User = Depends(current_user)):
-    household_id = household_id_for_user(db, user.id)
-    food = db.scalar(select(Food).where(
-        Food.id == food_id, Food.is_active.is_(True),
-        food_scope(user.id, household_id),
-        Food.is_system.is_(False),
+    food = db.scalar(visible_foods_statement(user.id, db).where(
+        Food.id == food_id, Food.is_active.is_(True), Food.is_system.is_(False),
     ))
     if food is None:
         raise HTTPException(404, "Bearbeitbares Lebensmittel nicht gefunden.")
