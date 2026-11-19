@@ -245,3 +245,93 @@ def test_pre_household_foods_and_recipes_become_shared_after_household_join(clie
     assert client.delete("/api/household/leave").status_code == 204
     assert client.get("/api/nutrition/foods?q=Vorhandene").json() == []
     assert len(client.get("/api/nutrition/foods?q=Eigene Banane").json()) == 1
+
+
+def test_account_deletion_transfers_household_and_preserves_shared_catalog(client: TestClient) -> None:
+    register(client, "delete-owner")
+    login(client, "delete-owner")
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Shared Delete Food", "basis_g": 100, "calories": 90,
+        "protein_g": 3, "carbs_g": 12, "fat_g": 2,
+    })
+    assert food.status_code == 201
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Shared Delete Recipe", "meal_type": "lunch",
+        "ingredients": [{"food_id": food.json()["id"], "amount_g": 100}],
+    })
+    assert recipe.status_code == 201
+
+    register(client, "delete-member")
+    invitation = client.post("/api/household/invitations", json={"username": "delete-member"})
+    assert invitation.status_code == 201
+    client.post("/api/auth/logout")
+    login(client, "delete-member")
+    assert client.post(f"/api/household/invitations/{invitation.json()['id']}/accept").status_code == 200
+    assert len(client.get("/api/nutrition/foods?q=Shared%20Delete").json()) == 1
+    assert len(client.get("/api/nutrition/recipes?q=Shared%20Delete").json()) == 1
+
+    client.post("/api/auth/logout")
+    login(client, "delete-owner")
+    deleted = client.request("DELETE", "/api/auth/account", json={
+        "password": PASSWORD, "confirmation": "delete-owner",
+    })
+    assert deleted.status_code == 204
+    assert client.get("/api/auth/me").status_code == 401
+    assert client.post("/api/auth/login", json={
+        "username": "delete-owner", "password": PASSWORD,
+    }).status_code == 401
+
+    login(client, "delete-member")
+    household = client.get("/api/household").json()["household"]
+    assert household["owner_id"] == household["current_user_id"]
+    assert household["current_user_role"] == "owner"
+    assert len(client.get("/api/nutrition/foods?q=Shared%20Delete").json()) == 1
+    remaining_recipes = client.get("/api/nutrition/recipes?q=Shared%20Delete")
+    assert remaining_recipes.status_code == 200
+    assert len(remaining_recipes.json()) == 1
+    logged = client.post(f"/api/nutrition/recipes/{recipe.json()['id']}/log")
+    assert logged.status_code == 201
+    assert logged.json()["calories"] == 90
+
+
+def test_account_deletion_keeps_food_as_recipe_dependency_without_general_access(client: TestClient) -> None:
+    register(client, "dependency-recipe-owner")
+    login(client, "dependency-recipe-owner")
+    register(client, "dependency-food-owner")
+    invitation = client.post("/api/household/invitations", json={
+        "username": "dependency-food-owner",
+    })
+    assert invitation.status_code == 201
+    client.post("/api/auth/logout")
+    login(client, "dependency-food-owner")
+    assert client.post(f"/api/household/invitations/{invitation.json()['id']}/accept").status_code == 200
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Retained Recipe Ingredient", "basis_g": 100, "calories": 120,
+        "protein_g": 5, "carbs_g": 15, "fat_g": 4,
+    })
+    assert food.status_code == 201
+
+    client.post("/api/auth/logout")
+    login(client, "dependency-recipe-owner")
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Retained Dependency Recipe", "meal_type": "dinner",
+        "ingredients": [{"food_id": food.json()["id"], "amount_g": 100}],
+    })
+    assert recipe.status_code == 201
+
+    client.post("/api/auth/logout")
+    login(client, "dependency-food-owner")
+    deleted = client.request("DELETE", "/api/auth/account", json={
+        "password": PASSWORD, "confirmation": "dependency-food-owner",
+    })
+    assert deleted.status_code == 204
+
+    client.post("/api/auth/logout")
+    login(client, "dependency-recipe-owner")
+    assert client.get("/api/nutrition/foods?q=Retained%20Recipe").json() == []
+    visible = client.get("/api/nutrition/recipes?q=Retained%20Dependency")
+    assert len(visible.json()) == 1
+    assert visible.json()[0]["ingredients"][0]["food_name"] == "Retained Recipe Ingredient"
+    logged = client.post(f"/api/nutrition/recipes/{recipe.json()['id']}/log")
+    assert logged.status_code == 201
+    assert logged.json()["calories"] == 120
