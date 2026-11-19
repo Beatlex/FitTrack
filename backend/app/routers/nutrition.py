@@ -23,20 +23,19 @@ MACROS = ("calories", "protein_g", "carbs_g", "fat_g")
 
 def visible_foods_statement(user_id: int, db: Session):
     household_id = household_id_for_user(db, user_id)
-    if household_id is None:
-        return select(Food).where(
-            or_(Food.is_system.is_(True), (Food.household_id.is_(None) & (Food.owner_id == user_id)))
-        )
-    return select(Food).where(or_(Food.is_system.is_(True), Food.household_id == household_id))
+    return select(Food).where(or_(
+        Food.is_system.is_(True),
+        Food.household_id == household_id if household_id is not None else False,
+        Food.household_id.is_(None) & (Food.owner_id == user_id),
+    ))
 
 
 def visible_recipes_statement(user_id: int, db: Session):
     household_id = household_id_for_user(db, user_id)
-    if household_id is None:
-        return select(MealTemplate).where(
-            MealTemplate.household_id.is_(None), MealTemplate.owner_id == user_id
-        )
-    return select(MealTemplate).where(MealTemplate.household_id == household_id)
+    return select(MealTemplate).where(or_(
+        MealTemplate.household_id == household_id if household_id is not None else False,
+        MealTemplate.household_id.is_(None) & (MealTemplate.owner_id == user_id),
+    ))
 
 
 def food_dict(food: Food) -> dict:
