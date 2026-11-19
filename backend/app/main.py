@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 from pwdlib import PasswordHash
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -16,6 +17,7 @@ from . import nutrition_models  # Register nutrition tables before create_all
 from . import household_models  # Register household tables before create_all
 from .household_models import Household, HouseholdMember
 from .schemas import MeasurementCreate, MeasurementUpdate
+from .account_service import delete_account as delete_account_data
 
 Base.metadata.create_all(bind=engine)
 
@@ -37,6 +39,11 @@ if len(session_secret) < 32:
 cookie_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 if is_production and not cookie_secure:
     raise RuntimeError("COOKIE_SECURE=true ist im Produktionsbetrieb erforderlich.")
+
+class AccountDeletionRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=256)
+    confirmation: str = Field(min_length=3, max_length=40)
+
 
 app = FastAPI(title="FitTrack API", version="0.2.0")
 app.add_middleware(
@@ -120,6 +127,24 @@ def logout(request: Request):
 def me(user: User = Depends(current_user)):
     return {"id": user.id, "username": user.username}
 
+
+
+@app.delete("/api/auth/account", status_code=204)
+def delete_own_account(
+    data: AccountDeletionRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    if not password_hasher.verify(data.password, user.password_hash):
+        raise HTTPException(403, "Das Passwort ist nicht korrekt.")
+    if data.confirmation != user.username:
+        raise HTTPException(400, "Bitte bestätige die Kontolöschung mit deinem Benutzernamen.")
+
+    delete_account_data(db, user)
+    db.commit()
+    request.session.clear()
+    return Response(status_code=204)
 
 @app.get("/api/measurements")
 def list_measurements(db: Session = Depends(get_db), user: User = Depends(current_user)):
