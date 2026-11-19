@@ -8,9 +8,15 @@ from ..database import get_db
 from ..dependencies import current_user
 from ..models import User
 from ..household_service import household_id_for_user
+from ..catalog_access import (
+    visible_foods_statement as acl_visible_foods_statement,
+    visible_recipes_statement as acl_visible_recipes_statement,
+    grant_new_food, grant_new_recipe, sync_recipe_ingredient_grants,
+)
 from ..nutrition_models import (
-    Food, MealEntry, MealIngredient, MealTemplate, MealTemplateFavorite,
-    MealTemplateIngredient, NutritionGoal,
+    Food, FoodAccess, FoodHiddenByUser, MealEntry, MealIngredient, MealTemplate,
+    MealTemplateFavorite, MealTemplateIngredient, NutritionGoal, RecipeAccess,
+    RecipeHiddenByUser, RecipeIngredientAccess,
 )
 from ..nutrition_schemas import (
     FavoriteUpdate, FoodCreate, FoodUpdate, GoalUpdate, MealCreate,
@@ -21,25 +27,12 @@ router = APIRouter(prefix="/api/nutrition", tags=["nutrition"])
 MACROS = ("calories", "protein_g", "carbs_g", "fat_g")
 
 
-def food_scope(user_id: int, household_id: int | None):
-    """Shared household foods plus the current user's private catalog entries."""
-    clauses = [Food.household_id.is_(None) & (Food.owner_id == user_id)]
-    if household_id is not None:
-        clauses.append(Food.household_id == household_id)
-    return or_(*clauses)
-
-
 def visible_foods_statement(user_id: int, db: Session):
-    household_id = household_id_for_user(db, user_id)
-    return select(Food).where(or_(Food.is_system.is_(True), food_scope(user_id, household_id)))
+    return acl_visible_foods_statement(user_id)
 
 
 def visible_recipes_statement(user_id: int, db: Session):
-    household_id = household_id_for_user(db, user_id)
-    clauses = [MealTemplate.household_id.is_(None) & (MealTemplate.owner_id == user_id)]
-    if household_id is not None:
-        clauses.append(MealTemplate.household_id == household_id)
-    return select(MealTemplate).where(or_(*clauses))
+    return acl_visible_recipes_statement(user_id)
 
 
 def food_dict(food: Food) -> dict:
@@ -82,7 +75,7 @@ def create_food(data: FoodCreate, db: Session = Depends(get_db),
     household_id = household_id_for_user(db, user.id)
     duplicate = db.scalar(select(Food).where(
         Food.is_active.is_(True),
-        food_scope(user.id, household_id),
+        Food.id.in_(select(acl_visible_foods_statement(user.id).subquery().c.id)),
         func.lower(Food.name) == data.name.casefold(),
     ))
     if duplicate is not None:
@@ -90,6 +83,8 @@ def create_food(data: FoodCreate, db: Session = Depends(get_db),
     food = Food(owner_id=user.id, household_id=household_id, name=data.name, brand=data.brand,
                 basis_g=data.basis_g, **{key: getattr(data, key) for key in MACROS})
     db.add(food)
+    db.flush()
+    grant_new_food(db, food, user.id, household_id)
     db.commit()
     db.refresh(food)
     return food_dict(food)
@@ -264,7 +259,14 @@ def recipe_dict(template: MealTemplate, db: Session, user_id: int) -> dict:
         MealTemplateIngredient.template_id == template.id
     ).order_by(MealTemplateIngredient.id)).all()
     food_ids = {row.food_id for row in rows}
-    foods = db.scalars(visible_foods_statement(user_id, db).where(Food.id.in_(food_ids))).all()
+    foods = db.scalars(select(Food).where(
+        Food.id.in_(food_ids),
+        select(RecipeIngredientAccess.id).where(
+            RecipeIngredientAccess.recipe_id == template.id,
+            RecipeIngredientAccess.food_id == Food.id,
+            RecipeIngredientAccess.user_id == user_id,
+        ).exists(),
+    )).all()
     by_id = {food.id: food for food in foods}
     ingredients = []
     totals = {key: 0.0 for key in MACROS}
@@ -310,7 +312,14 @@ def list_recipes(q: str = Query(default="", max_length=100), favorites_only: boo
         MealTemplateIngredient.template_id.in_(template_ids)
     ).order_by(MealTemplateIngredient.id)).all()
     food_ids = {row.food_id for row in rows}
-    foods = db.scalars(visible_foods_statement(user.id, db).where(Food.id.in_(food_ids))).all()
+    foods = db.scalars(select(Food).where(
+        Food.id.in_(food_ids),
+        select(RecipeIngredientAccess.id).where(
+            RecipeIngredientAccess.recipe_id.in_(template_ids),
+            RecipeIngredientAccess.food_id == Food.id,
+            RecipeIngredientAccess.user_id == user.id,
+        ).exists(),
+    )).all()
     by_food = {food.id: food for food in foods}
     by_template: dict[int, list[MealTemplateIngredient]] = {}
     for row in rows:
@@ -371,6 +380,8 @@ def create_recipe(data: RecipeCreate, db: Session = Depends(get_db),
         db.add(MealTemplateIngredient(
             template_id=template.id, food_id=item.food_id, amount_g=item.amount_g
         ))
+    db.flush()
+    grant_new_recipe(db, template, user.id, household_id)
     db.commit()
     db.refresh(template)
     return recipe_dict(template, db, user.id)
@@ -400,6 +411,8 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
         db.add(MealTemplateIngredient(
             template_id=template.id, food_id=item.food_id, amount_g=item.amount_g
         ))
+    db.flush()
+    sync_recipe_ingredient_grants(db, template.id)
     db.commit()
     db.refresh(template)
     return recipe_dict(template, db, user.id)
