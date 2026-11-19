@@ -258,7 +258,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
             <div className="food-actions"><button className="icon-action" aria-label={`${food.name} bearbeiten`} disabled={busy || food.is_system} onClick={() => editFood(food)}><Pencil size={16}/></button>
               <button className="icon-action danger" aria-label={`${food.name} löschen`} disabled={busy || food.is_system} onClick={() => void archiveFood(food)}><Trash2 size={16}/></button></div></article>)}</div>}
       </section>
-    </>}}
+    </>}
     {error && <p className="form-message error-message" role="alert">{error}</p>}
     {notice && <p className="form-message success-message" role="status">{notice}</p>}
   </div>;
