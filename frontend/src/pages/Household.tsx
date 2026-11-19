@@ -23,6 +23,7 @@ const dateLabel = (value: string) => new Date(value).toLocaleDateString("de-DE")
 export default function HouseholdPage() {
   const [data, setData] = useState<ResponseData | null>(null);
   const [username, setUsername] = useState("");
+  const [householdName, setHouseholdName] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -57,6 +58,16 @@ export default function HouseholdPage() {
     }
   }
 
+  async function createHousehold(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const clean = householdName.trim();
+    if (!clean) return;
+    await run(async () => {
+      await api("/api/household", { method: "POST", body: JSON.stringify({ name: clean }) });
+      setHouseholdName("");
+    }, "Dein Haushalt wurde erstellt. Du bist jetzt der Admin.");
+  }
+
   async function invite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const clean = username.trim().toLowerCase();
@@ -82,13 +93,24 @@ export default function HouseholdPage() {
         <div>
           <small>GEMEINSAM VERWALTEN</small>
           <h2>{household?.name ?? "Noch kein Haushalt"}</h2>
-          <p>{household ? "Lebensmittel und gespeicherte Gerichte werden mit den Mitgliedern dieses Haushalts geteilt." : "Nimm eine offene Einladung an, um einem Haushalt beizutreten."}</p>
+          <p>{household ? "Lebensmittel und gespeicherte Gerichte werden mit den Mitgliedern dieses Haushalts geteilt." : "Erstelle deinen eigenen Haushalt oder nimm eine Einladung an."}</p>
         </div>
-        {household && <span className="household-role">{isOwner ? "Inhaber" : "Mitglied"}</span>}
+        {household && <span className="household-role">{isOwner ? "Admin" : "Mitglied"}</span>}
       </section>
 
       {error && <p className="error-message form-message" role="alert">{error}</p>}
       {notice && <p className="success-message form-message" role="status">{notice}</p>}
+
+      {!household && <section className="panel household-section household-create">
+        <div className="panel-heading"><div><h2><Home size={18}/> Eigenen Haushalt erstellen</h2><p>Du wirst automatisch Admin und kannst anschließend weitere Benutzer einladen.</p></div></div>
+        <form className="household-create-form" onSubmit={createHousehold}>
+          <label htmlFor="household-name">Name des Haushalts</label>
+          <div className="invite-input-row">
+            <input id="household-name" value={householdName} onChange={event => setHouseholdName(event.target.value)} minLength={1} maxLength={80} placeholder="z. B. Familie Müller" required />
+            <button className="primary" type="submit" disabled={busy || !householdName.trim()}><Plus size={16}/> Haushalt erstellen</button>
+          </div>
+        </form>
+      </section>}
 
       {data?.invitations.length ? <section className="panel household-section">
         <div className="panel-heading"><div><h2>Einladungen für dich</h2><p>Du entscheidest selbst, welchem Haushalt du beitrittst.</p></div></div>
@@ -114,8 +136,8 @@ export default function HouseholdPage() {
           <div className="household-list">
             {household.members.map(member => <article className="household-member" key={member.user_id}>
               <div className="member-avatar"><Users size={17}/></div>
-              <div className="member-info"><b>{member.username}{member.user_id === household.current_user_id ? " (du)" : ""}</b><small>{member.role === "owner" ? "Haushaltsinhaber" : "Mitglied"} · Seit {dateLabel(member.joined_at)}</small></div>
-              {member.role === "owner" ? <span className="owner-tag"><Crown size={14}/> Inhaber</span> :
+              <div className="member-info"><b>{member.username}{member.user_id === household.current_user_id ? " (du)" : ""}</b><small>{member.role === "owner" ? "Haushalts-Admin" : "Mitglied"} · Seit {dateLabel(member.joined_at)}</small></div>
+              {member.role === "owner" ? <span className="owner-tag"><Crown size={14}/> Admin</span> :
                 isOwner ? <button className="icon-danger" title={member.user_id === household.owner_id ? "Inhaber kann nicht entfernt werden" : "Mitglied aus Haushalt entfernen"} disabled={busy} onClick={() => {
                   if (window.confirm(`${member.username} wirklich aus dem Haushalt entfernen? Der Zugriff auf gemeinsame Lebensmittel und Gerichte endet sofort.`)) {
                     void run(async () => { await api(`/api/household/members/${member.user_id}`, { method: "DELETE" }); }, "Mitglied wurde entfernt.");
@@ -127,7 +149,7 @@ export default function HouseholdPage() {
         </section>
 
         {isOwner && <section className="panel household-section">
-          <div className="panel-heading"><div><h2><Plus size={18}/> Benutzer einladen</h2><p>Die Einladung geht an ein bestehendes FitTrack-Konto mit bekanntem Benutzernamen.</p></div></div>
+          <div className="panel-heading"><div><h2><Plus size={18}/> Benutzer einladen</h2><p>Lade beliebig viele registrierte Benutzer anhand ihres Benutzernamens ein. Sie treten erst nach Annahme bei.</p></div></div>
           <form className="household-invite-form" onSubmit={invite}>
             <label htmlFor="household-username">Benutzername</label>
             <div className="invite-input-row">
