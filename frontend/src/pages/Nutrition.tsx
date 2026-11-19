@@ -119,7 +119,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
     setFoodValues(Object.fromEntries(keys.map(({ key }) => [key, String(food[key])])) as typeof foodValues);
     setFoodEditorOpen(true);
   }
-  async function archiveFood(food: Food) {
+  async function hideFood(food: Food) {
     if (!window.confirm(`„${food.name}“ aus deiner Lebensmittelauswahl ausblenden? Andere Haushaltsmitglieder behalten den Zugriff.`)) return;
     await runAction(async () => {
       await api(`/api/nutrition/foods/${food.id}/hide`, { method: "POST" });
@@ -169,7 +169,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
       await loadDay(); await onDataChanged();
     }, recipe.name + " wurde für heute eingetragen.");
   }
-  async function deleteRecipe(recipe: Recipe) {
+  async function hideRecipe(recipe: Recipe) {
     if (!window.confirm(`Gericht „${recipe.name}“ nur aus deiner persönlichen Sammlung ausblenden? Andere Haushaltsmitglieder behalten es.`)) return;
     await runAction(async () => {
       await api(`/api/nutrition/recipes/${recipe.id}/hide`, { method: "POST" });
@@ -229,12 +229,12 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
 
     {view === "recipes" && <>
       <section className="panel">
-        <div className="panel-heading"><div><h2>Deine Gerichte</h2><p>Gemeinsame Gerichte für beide Benutzer · Favoriten bleiben pro Benutzer privat.</p></div>
+        <div className="panel-heading"><div><h2>Deine Gerichte</h2><p>Gemeinsame Gerichte für Mitglieder deines Haushalts · Favoriten bleiben pro Benutzer privat.</p></div>
           <button className="primary" onClick={() => setView("foods")}><Plus size={16}/> Lebensmittel verwalten</button></div>
         <div className="nutrition-tools"><div className="nutrition-search"><Search size={16}/><input placeholder="Gericht suchen" value={recipeQuery} onChange={e => { setRecipeQuery(e.target.value); void loadRecipes(e.target.value); }}/></div>
           <label className="favorite-filter"><input type="checkbox" checked={favoritesOnly} onChange={e => { setFavoritesOnly(e.target.checked); void loadRecipes(recipeQuery, e.target.checked); }}/> Nur Favoriten</label></div>
         {!recipes.length ? <div className="nutrition-empty"><Utensils/><p>Noch keine Gerichte gespeichert.</p><span>Erstelle dein erstes Gericht aus vorhandenen Lebensmitteln.</span></div> :
-          <div className="recipe-cards">{recipes.map(recipe => <RecipeCard key={recipe.id} recipe={recipe} busy={busy} onLog={() => void logRecipe(recipe)} onFavorite={() => void toggleRecipe(recipe)} onDelete={() => void deleteRecipe(recipe)} onEdit={() => editRecipe(recipe)}/>)}</div>}
+          <div className="recipe-cards">{recipes.map(recipe => <RecipeCard key={recipe.id} recipe={recipe} busy={busy} onLog={() => void logRecipe(recipe)} onFavorite={() => void toggleRecipe(recipe)} onHide={() => void hideRecipe(recipe)} onEdit={() => editRecipe(recipe)}/>)}</div>}
         {!!hiddenRecipes.length && <div className="hidden-catalog-list">
           <h3>Für dich ausgeblendete Gerichte</h3>
           {hiddenRecipes.map(recipe => <article className="food-row" key={recipe.id}>
@@ -263,9 +263,9 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
 
     {view === "foods" && <>
       <section className="panel">
-        <div className="panel-heading"><div><h2>Lebensmittel</h2><p>Gemeinsamer Lebensmittelkatalog für beide Benutzer. Einmal anlegen, beliebig oft wiederverwenden.</p></div><button className="secondary-button" onClick={() => setView("recipes")}><ArrowLeft size={15}/> Zurück zu Gerichten</button></div>
+        <div className="panel-heading"><div><h2>Lebensmittel</h2><p>Gemeinsamer Lebensmittelkatalog deines Haushalts. Einmal anlegen, beliebig oft wiederverwenden.</p></div><button className="secondary-button" onClick={() => setView("recipes")}><ArrowLeft size={15}/> Zurück zu Gerichten</button></div>
         <div className="food-editor-toggle">
-          <div><b>{editingFoodId !== null ? "Lebensmittel bearbeiten" : "Neues Lebensmittel"}</b><small>Für beide Benutzer verfügbar · Nährwerte je 100 g</small></div>
+          <div><b>{editingFoodId !== null ? "Lebensmittel bearbeiten" : "Neues Lebensmittel"}</b><small>Für Haushaltsmitglieder verfügbar · Nährwerte je 100 g</small></div>
           <button className="secondary-button" type="button" onClick={() => { setFoodEditorOpen(value => !value); if (foodEditorOpen) { setEditingFoodId(null); setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" }); } }}>
             <Plus size={15}/> {foodEditorOpen ? "Einklappen" : "Lebensmittel anlegen"}
           </button>
@@ -282,7 +282,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
         {!foods.length ? <div className="nutrition-empty"><p>Keine Lebensmittel gefunden.</p></div> :
           <div className="food-list">{foods.map(food => <article className="food-row" key={food.id}><div><b>{food.name}</b><small>Je {n(food.basis_g)} g · {n(food.calories)} kcal · P {n(food.protein_g)} g · KH {n(food.carbs_g)} g · F {n(food.fat_g)} g</small></div>
             <div className="food-actions"><button className="icon-action" aria-label={`${food.name} bearbeiten`} disabled={busy || food.is_system} onClick={() => editFood(food)}><Pencil size={16}/></button>
-              <button className="icon-action danger" aria-label={`${food.name} ausblenden`} disabled={busy || food.is_system} onClick={() => void archiveFood(food)}><EyeOff size={16}/></button></div></article>)}</div>}
+              <button className="icon-action danger" aria-label={`${food.name} ausblenden`} disabled={busy || food.is_system} onClick={() => void hideFood(food)}><EyeOff size={16}/></button></div></article>)}</div>}
         {!!hiddenFoods.length && <div className="hidden-catalog-list">
           <h3>Für dich ausgeblendete Lebensmittel</h3>
           {hiddenFoods.map(food => <article className="food-row" key={food.id}>
@@ -297,14 +297,14 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
   </div>;
 }
 
-function RecipeCard({ recipe, busy, onLog, onFavorite, onDelete, onEdit }: {
-  recipe: Recipe; busy: boolean; onLog: () => void; onFavorite: () => void; onDelete?: () => void; onEdit?: () => void;
+function RecipeCard({ recipe, busy, onLog, onFavorite, onHide, onEdit }: {
+  recipe: Recipe; busy: boolean; onLog: () => void; onFavorite: () => void; onHide?: () => void; onEdit?: () => void;
 }) {
   return <article className="recipe-card">
     <div className="recipe-card-heading"><div><h3>{recipe.name}</h3><small>{mealLabels[recipe.meal_type] ?? recipe.meal_type} · {recipe.ingredients.length} Zutaten · {n(recipe.amount_g)} g</small></div>
       <button className={recipe.is_favorite ? "favorite-button active" : "favorite-button"} aria-label={recipe.is_favorite ? "Favorit entfernen" : "Als Favorit markieren"} disabled={busy} onClick={onFavorite}><Heart size={17} fill={recipe.is_favorite ? "currentColor" : "none"}/></button></div>
     <ul>{recipe.ingredients.map((item, i) => <li key={item.id ?? item.food_id + "-" + i}>{item.food_name} · {n(item.amount_g)} g</li>)}</ul>
     <p className="recipe-nutrients">{n(recipe.calories)} kcal · P {n(recipe.protein_g)} g · KH {n(recipe.carbs_g)} g · F {n(recipe.fat_g)} g</p>
-    <div className="recipe-card-actions">{onEdit && <button className="icon-action" aria-label={`${recipe.name} bearbeiten`} disabled={busy} onClick={onEdit}><Pencil size={16}/></button>}<button className="primary" disabled={busy} onClick={onLog}><Plus size={15}/> Heute eintragen</button>{onDelete && <button className="icon-action danger" disabled={busy} aria-label="Gericht ausblenden" onClick={onDelete}><EyeOff size={15}/></button>}</div>
+    <div className="recipe-card-actions">{onEdit && <button className="icon-action" aria-label={`${recipe.name} bearbeiten`} disabled={busy} onClick={onEdit}><Pencil size={16}/></button>}<button className="primary" disabled={busy} onClick={onLog}><Plus size={15}/> Heute eintragen</button>{onHide && <button className="icon-action danger" disabled={busy} aria-label="Gericht ausblenden" onClick={onHide}><EyeOff size={15}/></button>}</div>
   </article>;
 }
