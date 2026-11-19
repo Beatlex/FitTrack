@@ -9,6 +9,11 @@ from ..dependencies import current_user
 from ..household_models import Household, HouseholdInvitation, HouseholdMember
 from ..models import User
 from ..nutrition_models import Food, MealTemplate, MealTemplateIngredient
+from ..catalog_access import (
+    grant_owned_catalog_to_household,
+    grant_household_catalog_to_member,
+    revoke_household_access_for_member,
+)
 
 router = APIRouter(prefix="/api/household", tags=["household"])
 
@@ -45,6 +50,8 @@ def share_owned_catalog(db: Session, user_id: int, household_id: int) -> None:
     db.execute(update(MealTemplate).where(
         MealTemplate.owner_id == user_id, MealTemplate.household_id.is_(None)
     ).values(household_id=household_id, is_shared=True))
+    db.flush()
+    grant_owned_catalog_to_household(db, user_id, household_id)
 
 
 def privatize_owned_catalog(db: Session, user_id: int, household_id: int) -> None:
@@ -193,6 +200,7 @@ def accept_invitation(invitation_id: int, db: Session = Depends(get_db),
         household_id=invitation.household_id, user_id=user.id, role="member"
     ))
     share_owned_catalog(db, user.id, invitation.household_id)
+    grant_household_catalog_to_member(db, user.id, invitation.household_id)
     db.delete(invitation)
     try:
         db.commit()
@@ -236,6 +244,7 @@ def remove_member(member_user_id: int, db: Session = Depends(get_db),
         require_owner(db, user.id, membership.household_id)
         if target.role == "owner":
             raise HTTPException(409, "Der Haushaltsinhaber kann nicht entfernt werden.")
+    revoke_household_access_for_member(db, target.user_id, target.household_id)
     privatize_owned_catalog(db, target.user_id, target.household_id)
     db.delete(target)
     db.commit()
@@ -266,6 +275,7 @@ def leave_household(db: Session = Depends(get_db), user: User = Depends(current_
             db.delete(household)
         db.commit()
         return Response(status_code=204)
+    revoke_household_access_for_member(db, user.id, membership.household_id)
     privatize_owned_catalog(db, user.id, membership.household_id)
     db.delete(membership)
     db.commit()
