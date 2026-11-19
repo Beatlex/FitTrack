@@ -141,6 +141,45 @@ def archive_food(food_id: int, db: Session = Depends(get_db),
     return Response(status_code=204)
 
 
+
+@router.get("/foods/hidden")
+def list_hidden_foods(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    foods = db.scalars(
+        select(Food)
+        .join(FoodHiddenByUser, FoodHiddenByUser.food_id == Food.id)
+        .where(FoodHiddenByUser.user_id == user.id)
+        .order_by(Food.name, Food.id)
+    ).all()
+    return [food_dict(food) for food in foods]
+
+
+@router.post("/foods/{food_id}/hide", status_code=204)
+def hide_food(food_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    food = db.scalar(select(Food).join(
+        FoodAccess, FoodAccess.food_id == Food.id
+    ).where(Food.id == food_id, FoodAccess.user_id == user.id, Food.is_system.is_(False)))
+    if food is None:
+        raise HTTPException(404, "Lebensmittel nicht gefunden.")
+    marker = db.scalar(select(FoodHiddenByUser).where(
+        FoodHiddenByUser.food_id == food_id, FoodHiddenByUser.user_id == user.id
+    ))
+    if marker is None:
+        db.add(FoodHiddenByUser(food_id=food_id, user_id=user.id))
+        db.commit()
+    return Response(status_code=204)
+
+
+@router.delete("/foods/{food_id}/hide", status_code=204)
+def restore_food(food_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    marker = db.scalar(select(FoodHiddenByUser).where(
+        FoodHiddenByUser.food_id == food_id, FoodHiddenByUser.user_id == user.id
+    ))
+    if marker is None:
+        raise HTTPException(404, "Ausgeblendetes Lebensmittel nicht gefunden.")
+    db.delete(marker)
+    db.commit()
+    return Response(status_code=204)
+
 @router.get("/goals")
 def get_goals(db: Session = Depends(get_db), user: User = Depends(current_user)):
     goal = db.scalar(select(NutritionGoal).where(NutritionGoal.user_id == user.id))
@@ -361,6 +400,45 @@ def validate_recipe_ingredients(data: RecipeCreate, db: Session, user_id: int) -
     if len(foods) != len(ids):
         raise HTTPException(404, "Mindestens ein aktives Lebensmittel wurde nicht gefunden.")
 
+
+
+@router.get("/recipes/hidden")
+def list_hidden_recipes(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    templates = db.scalars(
+        select(MealTemplate)
+        .join(RecipeHiddenByUser, RecipeHiddenByUser.recipe_id == MealTemplate.id)
+        .where(RecipeHiddenByUser.user_id == user.id)
+        .order_by(MealTemplate.name, MealTemplate.id)
+    ).all()
+    return [recipe_dict(template, db, user.id) for template in templates]
+
+
+@router.post("/recipes/{recipe_id}/hide", status_code=204)
+def hide_recipe(recipe_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    template = db.scalar(select(MealTemplate).join(
+        RecipeAccess, RecipeAccess.recipe_id == MealTemplate.id
+    ).where(MealTemplate.id == recipe_id, RecipeAccess.user_id == user.id))
+    if template is None:
+        raise HTTPException(404, "Gericht nicht gefunden.")
+    marker = db.scalar(select(RecipeHiddenByUser).where(
+        RecipeHiddenByUser.recipe_id == recipe_id, RecipeHiddenByUser.user_id == user.id
+    ))
+    if marker is None:
+        db.add(RecipeHiddenByUser(recipe_id=recipe_id, user_id=user.id))
+        db.commit()
+    return Response(status_code=204)
+
+
+@router.delete("/recipes/{recipe_id}/hide", status_code=204)
+def restore_recipe(recipe_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    marker = db.scalar(select(RecipeHiddenByUser).where(
+        RecipeHiddenByUser.recipe_id == recipe_id, RecipeHiddenByUser.user_id == user.id
+    ))
+    if marker is None:
+        raise HTTPException(404, "Ausgeblendetes Gericht nicht gefunden.")
+    db.delete(marker)
+    db.commit()
+    return Response(status_code=204)
 
 @router.post("/recipes", status_code=201)
 def create_recipe(data: RecipeCreate, db: Session = Depends(get_db),
