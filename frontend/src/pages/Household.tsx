@@ -168,6 +168,15 @@ export default function HouseholdPage() {
           </div>}
         </section>}
 
+        {isOwner && <section className="panel household-section leave-household">
+          <div><h2><ShieldCheck size={18}/> Admin-Verantwortung</h2><p>{household.members.length > 1 ? "Du bist der Admin und bleibst es. Solange weitere Mitglieder im Haushalt sind, kannst du ihn nicht verlassen." : "Du bist das einzige Mitglied. Wenn du den Haushalt auflöst, werden auch offene Einladungen und die Haushaltsfreigabe entfernt. Deine persönlichen Daten bleiben erhalten."}</p></div>
+          {household.members.length === 1 && <button className="secondary-button" disabled={busy} onClick={() => {
+            if (window.confirm("Diesen Haushalt wirklich auflösen? Deine persönlichen Messungen und Mahlzeiten bleiben erhalten.")) {
+              void run(async () => { await api("/api/household/leave", { method: "DELETE" }); }, "Der Haushalt wurde aufgelöst.");
+            }
+          }}>Haushalt auflösen</button>}
+        </section>}
+
         {!isOwner && <section className="panel household-section leave-household">
           <div><h2><LogOut size={18}/> Haushalt verlassen</h2><p>Du verlierst dadurch den Zugriff auf gemeinsame Lebensmittel und Gerichte. Deine persönlichen Messungen und Mahlzeiten bleiben erhalten.</p></div>
           <button className="secondary-button" disabled={busy} onClick={() => {
