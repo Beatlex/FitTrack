@@ -56,16 +56,13 @@ def share_owned_catalog(db: Session, user_id: int, household_id: int) -> None:
 
 
 def privatize_owned_catalog(db: Session, user_id: int, household_id: int) -> None:
-    """Make a departing member's catalog private, retaining foods used by others' recipes."""
-    used_by_other_recipe = select(MealTemplateIngredient.food_id).join(
-        MealTemplate, MealTemplate.id == MealTemplateIngredient.template_id
-    ).where(
-        MealTemplate.household_id == household_id,
-        MealTemplate.owner_id != user_id,
-    )
+    """Detach a departing member's owned catalog from household-wide sharing.
+
+    RecipeIngredientAccess preserves access needed by other members' existing
+    recipes, without keeping the food in the household's selectable catalog.
+    """
     db.execute(update(Food).where(
         Food.owner_id == user_id, Food.household_id == household_id,
-        Food.id.not_in(used_by_other_recipe),
     ).values(household_id=None, is_shared=False))
     db.execute(update(MealTemplate).where(
         MealTemplate.owner_id == user_id, MealTemplate.household_id == household_id
