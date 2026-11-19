@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Check, Crown, Home, Link2, LogOut, Plus, ShieldCheck, UserMinus, Users, X } from "lucide-react";
+import { CalendarDays, Check, Crown, Home, Plus, ShieldCheck, ShoppingBasket, UserMinus, Users, X } from "lucide-react";
 import { api } from "../services/api";
 
 type Member = { user_id: number; username: string; role: "owner" | "member"; joined_at: string };
@@ -8,6 +8,7 @@ type HouseholdData = {
   id: number;
   name: string;
   owner_id: number;
+  current_user_id: number;
   current_user_role: "owner" | "member";
   members: Member[];
 };
@@ -113,7 +114,7 @@ export default function HouseholdPage() {
           <div className="household-list">
             {household.members.map(member => <article className="household-member" key={member.user_id}>
               <div className="member-avatar"><Users size={17}/></div>
-              <div className="member-info"><b>{member.username}{member.user_id === household.owner_id ? " (du)" : ""}</b><small>{member.role === "owner" ? "Haushaltsinhaber" : "Mitglied"} · Seit {dateLabel(member.joined_at)}</small></div>
+              <div className="member-info"><b>{member.username}{member.user_id === household.current_user_id ? " (du)" : ""}</b><small>{member.role === "owner" ? "Haushaltsinhaber" : "Mitglied"} · Seit {dateLabel(member.joined_at)}</small></div>
               {member.role === "owner" ? <span className="owner-tag"><Crown size={14}/> Inhaber</span> :
                 isOwner ? <button className="icon-danger" title={member.user_id === household.owner_id ? "Inhaber kann nicht entfernt werden" : "Mitglied aus Haushalt entfernen"} disabled={busy} onClick={() => {
                   if (window.confirm(`${member.username} wirklich aus dem Haushalt entfernen? Der Zugriff auf gemeinsame Lebensmittel und Gerichte endet sofort.`)) {
@@ -149,20 +150,17 @@ export default function HouseholdPage() {
           <div><h2><LogOut size={18}/> Haushalt verlassen</h2><p>Du verlierst dadurch den Zugriff auf gemeinsame Lebensmittel und Gerichte. Deine persönlichen Messungen und Mahlzeiten bleiben erhalten.</p></div>
           <button className="secondary-button" disabled={busy} onClick={() => {
             if (window.confirm("Möchtest du diesen Haushalt wirklich verlassen?")) {
-              void run(async () => { await api(`/api/household/members/${household.members.find(m => m.role !== "owner" && m.user_id !== household.owner_id)?.user_id ?? 0}`, { method: "DELETE" }); }, "Du hast den Haushalt verlassen.");
+              void run(async () => { await api("/api/household/leave", { method: "DELETE" }); }, "Du hast den Haushalt verlassen.");
             }
           }}>Haushalt verlassen</button>
         </section>}
       </>}
 
       <section className="household-future-grid">
-        <article className="panel future-module"><CalendarIcon/><div><b>Wochenplan</b><small>Gemeinsame Planung eurer Gerichte</small><span>In Planung</span></div></article>
-        <article className="panel future-module"><ShoppingIcon/><div><b>Einkaufsplan</b><small>Zutaten automatisch zusammenfassen</small><span>In Planung</span></div></article>
+        <article className="panel future-module"><CalendarDays className="future-icon"/><div><b>Wochenplan</b><small>Gemeinsame Planung eurer Gerichte</small><span>In Planung</span></div></article>
+        <article className="panel future-module"><ShoppingBasket className="future-icon"/><div><b>Einkaufsplan</b><small>Zutaten automatisch zusammenfassen</small><span>In Planung</span></div></article>
       </section>
       <section className="household-sharing-note"><ShieldCheck size={17}/><p>Gemeinsam: Lebensmittel und Gerichte. Privat: Körperwerte, Tagesziele und protokollierte Mahlzeiten.</p></section>
     </div>
   );
 }
-
-function CalendarIcon() { return <Link2 className="future-icon"/>; }
-function ShoppingIcon() { return <Link2 className="future-icon"/>; }
