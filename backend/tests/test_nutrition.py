@@ -198,3 +198,107 @@ def test_recipe_and_food_duplicates_are_rejected_and_favorites_are_private(clien
     assert client.get("/api/nutrition/foods?q=Banane").json() == []
     assert client.patch(f"/api/nutrition/recipes/{recipe.json()['id']}/favorite",
                         json={"is_favorite": True}).status_code == 404
+
+
+def test_food_can_be_updated_and_archived_without_changing_historical_entries(client: TestClient) -> None:
+    login(client, "food-maintenance")
+    created = client.post("/api/nutrition/foods", json={
+        "name": "Haferflocken", "basis_g": 100, "calories": 370,
+        "protein_g": 13, "carbs_g": 59, "fat_g": 7,
+    })
+    assert created.status_code == 201
+    food_id = created.json()["id"]
+    logged = client.post("/api/nutrition/meals", json={
+        "meal_name": "Oats Frühstück", "meal_type": "breakfast",
+        "ingredients": [{"food_id": food_id, "amount_g": 50}],
+    })
+    assert logged.status_code == 201
+    assert logged.json()["calories"] == 185
+
+    updated = client.put(f"/api/nutrition/foods/{food_id}", json={
+        "name": "Haferflocken fein", "basis_g": 100, "calories": 400,
+        "protein_g": 14, "carbs_g": 62, "fat_g": 8,
+    })
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Haferflocken fein"
+    assert updated.json()["calories"] == 400
+    # Existing entries retain the nutrient snapshot from the time of logging.
+    day = client.get("/api/nutrition/day").json()
+    assert day["consumed"]["calories"] == 185
+    assert day["entries"][0]["ingredients"][0]["food_name"] == "Haferflocken"
+    assert day["entries"][0]["ingredients"][0]["calories"] == 185
+
+    duplicate = client.post("/api/nutrition/foods", json={
+        "name": "HAFERFLOCKEN FEIN", "basis_g": 100, "calories": 400,
+        "protein_g": 14, "carbs_g": 62, "fat_g": 8,
+    })
+    assert duplicate.status_code == 409
+
+    archived = client.delete(f"/api/nutrition/foods/{food_id}")
+    assert archived.status_code == 200
+    assert client.get("/api/nutrition/foods?q=Haferflocken").json() == []
+    assert client.post("/api/nutrition/meals", json={
+        "meal_name": "No longer selectable", "meal_type": "breakfast",
+        "ingredients": [{"food_id": food_id, "amount_g": 50}],
+    }).status_code == 404
+    # Historical data remains readable after archiving the source food.
+    assert client.get("/api/nutrition/day").json()["consumed"]["calories"] == 185
+
+
+def test_recipe_can_be_edited_and_keeps_old_logged_snapshot(client: TestClient) -> None:
+    login(client, "recipe-maintenance")
+    oats = client.post("/api/nutrition/foods", json={
+        "name": "Oats", "basis_g": 100, "calories": 370,
+        "protein_g": 13, "carbs_g": 59, "fat_g": 7,
+    }).json()
+    milk = client.post("/api/nutrition/foods", json={
+        "name": "Milch", "basis_g": 100, "calories": 64,
+        "protein_g": 3.4, "carbs_g": 4.8, "fat_g": 3.5,
+    }).json()
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Overnight Oats", "meal_type": "breakfast",
+        "ingredients": [{"food_id": oats["id"], "amount_g": 50}],
+    }).json()
+    logged = client.post(f"/api/nutrition/recipes/{recipe['id']}/log")
+    assert logged.status_code == 201
+    assert logged.json()["calories"] == 185
+
+    updated = client.put(f"/api/nutrition/recipes/{recipe['id']}", json={
+        "name": "Overnight Oats Deluxe", "meal_type": "breakfast",
+        "ingredients": [
+            {"food_id": oats["id"], "amount_g": 50},
+            {"food_id": milk["id"], "amount_g": 150},
+        ],
+    })
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Overnight Oats Deluxe"
+    assert updated.json()["calories"] == 281
+    # Editing a reusable recipe must not rewrite an already logged meal.
+    day = client.get("/api/nutrition/day").json()
+    assert day["consumed"]["calories"] == 185
+    assert day["entries"][0]["food_name"] == "Overnight Oats"
+    assert day["entries"][0]["calories"] == 185
+
+
+def test_food_and_recipe_updates_are_owner_scoped(client: TestClient) -> None:
+    login(client, "maintenance-owner")
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Private Food", "calories": 100, "protein_g": 2, "carbs_g": 3, "fat_g": 4,
+    }).json()
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Private Recipe", "meal_type": "snack",
+        "ingredients": [{"food_id": food["id"], "amount_g": 100}],
+    }).json()
+    client.post("/api/auth/logout")
+    login(client, "maintenance-other")
+    food_payload = {
+        "name": "Tampered Food", "basis_g": 100, "calories": 1,
+        "protein_g": 1, "carbs_g": 1, "fat_g": 1,
+    }
+    recipe_payload = {
+        "name": "Tampered Recipe", "meal_type": "snack",
+        "ingredients": [{"food_id": food["id"], "amount_g": 1}],
+    }
+    assert client.put(f"/api/nutrition/foods/{food['id']}", json=food_payload).status_code == 404
+    assert client.delete(f"/api/nutrition/foods/{food['id']}").status_code == 404
+    assert client.put(f"/api/nutrition/recipes/{recipe['id']}", json=recipe_payload).status_code == 404
