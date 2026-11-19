@@ -1,6 +1,6 @@
 # FitTrack
 
-Privates Fitness- und Ernährungstracking für zwei Personen im Haushalt. Jeder Benutzer sieht ausschließlich die eigenen Einträge. Die Datenstruktur bleibt für eine spätere, explizite Freigabefunktion erweiterbar; aktuell gibt es keinerlei Sharing.
+Privates Fitness- und Ernährungstracking für zwei Personen im Haushalt. Persönliche Einträge und Tagesziele bleiben pro Benutzer getrennt. Der Lebensmittelkatalog und die gespeicherte Gerichtebibliothek sind aktuell bewusst für beide Haushaltsbenutzer gemeinsam nutzbar; Favoriten bleiben pro Benutzer privat.
 
 ## Technologie
 - Backend: Python 3.14, FastAPI, SQLAlchemy, SQLite
@@ -51,14 +51,17 @@ Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debi
 - Lese-, Änderungs- und Löschabfragen für Körperwerte sind immer auf den angemeldeten Benutzer eingeschränkt.
 - Passwörter werden mit Argon2 gehasht; Session-Cookies sind HttpOnly und SameSite=Lax.
 - Der lokale Entwicklungsschlüssel ist ausschließlich für lokale Tests gedacht. Produktionsstarts ohne einen mindestens 32 Zeichen langen `SESSION_SECRET` und ohne `COOKIE_SECURE=true` werden abgebrochen.
-- Spätere Freigaben sollen über separate, widerrufbare Berechtigungsdatensätze umgesetzt werden. Die Eigentümerschaft der vorhandenen Mess- und Ernährungseinträge bleibt dabei unverändert.
+- Lebensmittel und Gerichte verwenden derzeit einen expliziten Shared-Status für die beiden Haushaltskonten. Eine spätere Freigabeverwaltung sollte diesen einfachen Status durch separate, widerrufbare Berechtigungsdatensätze ersetzen.
+- Tagesziele, Körpermessungen und protokollierte Mahlzeiten bleiben strikt benutzerbezogen. Nährwert-Snapshots bereits protokollierter Mahlzeiten werden durch spätere Änderungen am Lebensmittel oder Rezept nicht verändert.
 
 ## Aktueller Funktionsumfang
 - Anmeldung für zwei getrennte Benutzer
 - Dark-Dashboard mit Tagesmakros
 - Körperwerte: Gewicht, Bauch, Brust, Hüfte, Arm und Oberschenkel
 - Messdatum/-uhrzeit, Verlauf, Zeitraumfilter, Gewichtsdiagramm, Bearbeiten und Löschen
-- Manuelle Lebensmitteleinträge
+- Gemeinsamer Lebensmittelkatalog mit Suche, Anlegen, Bearbeiten und sicherem Archivieren
+- Gemeinsame Rezeptbibliothek mit Zutaten, Mengen, Bearbeiten und Löschen
+- Persönliche Rezeptfavoriten sowie individuelle Tagesziele und private Mahlzeitenprotokolle
 
 ## Geplante Ausbaustufen
-Alembic-Migrationen, Profilverwaltung, vollständige Ernährungshistorie mit Bearbeiten/Löschen, Statistiken und automatische Backups.
+Alembic als versioniertes Migrationssystem, Profilverwaltung, vollständige Ernährungshistorie mit Bearbeiten/Löschen, Statistiken, explizite Freigaben und automatische Backups.
