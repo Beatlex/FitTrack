@@ -220,6 +220,11 @@ def test_pre_household_foods_and_recipes_become_shared_after_household_join(clie
     assert invitation.status_code == 201
     client.post("/api/auth/logout")
     login(client, "catalog-guest")
+    guest_food = client.post("/api/nutrition/foods", json={
+        "name": "Eigene Banane", "basis_g": 100, "calories": 89,
+        "protein_g": 1.1, "carbs_g": 23, "fat_g": 0.3,
+    })
+    assert guest_food.status_code == 201
     assert client.post(f"/api/household/invitations/{invitation.json()['id']}/accept").status_code == 200
 
     shared_foods = client.get("/api/nutrition/foods?q=Vorhandene")
@@ -229,6 +234,7 @@ def test_pre_household_foods_and_recipes_become_shared_after_household_join(clie
     assert shared_recipes.status_code == 200
     assert len(shared_recipes.json()) == 1
     assert shared_recipes.json()[0]["name"] == "Altes Overnight Oats Rezept"
+    assert len(client.get("/api/nutrition/foods?q=Eigene Banane").json()) == 1
     # Shared foods are usable as ingredients by the newly joined member.
     logged = client.post("/api/nutrition/meals", json={
         "meal_name": "Gemeinsames Frühstück", "meal_type": "breakfast",
@@ -238,3 +244,4 @@ def test_pre_household_foods_and_recipes_become_shared_after_household_join(clie
     # Leaving restores the member's own catalog to private visibility.
     assert client.delete("/api/household/leave").status_code == 204
     assert client.get("/api/nutrition/foods?q=Vorhandene").json() == []
+    assert len(client.get("/api/nutrition/foods?q=Eigene Banane").json()) == 1
