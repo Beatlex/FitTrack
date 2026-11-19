@@ -91,7 +91,7 @@ def test_invitation_requires_acceptance_and_grants_household_catalog_access(clie
     client.post("/api/auth/logout")
     login(client, "household-guest")
     assert client.get("/api/household").json()["household"] is None
-    assert client.get("/api/nutrition/foods?q=Haferflocken").status_code == 409
+    assert client.get("/api/nutrition/foods?q=Haferflocken").json() == []
 
 
 def test_invitation_authorization_duplicate_and_owner_protection(client: TestClient) -> None:
