@@ -26,6 +26,7 @@ def upgrade(bind=engine) -> None:
         )"""))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_household_members_household_id ON household_members(household_id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_household_members_user_id ON household_members(user_id)"))
+        connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_household_member_user ON household_members(user_id)"))
         connection.execute(text("""CREATE TABLE IF NOT EXISTS household_invitations (
             id INTEGER PRIMARY KEY,
             household_id INTEGER NOT NULL REFERENCES households(id) ON DELETE CASCADE,
