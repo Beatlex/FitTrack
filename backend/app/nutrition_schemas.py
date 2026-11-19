@@ -21,6 +21,9 @@ class FoodCreate(Nutrients):
             raise ValueError("Lebensmittelname darf nicht leer sein.")
         return value
 
+class FoodUpdate(FoodCreate):
+    pass
+
 class GoalUpdate(Nutrients):
     pass
 
@@ -69,6 +72,10 @@ class RecipeCreate(BaseModel):
         if not value:
             raise ValueError("Gerichtname darf nicht leer sein.")
         return value
+
+
+class RecipeUpdate(RecipeCreate):
+    pass
 
 
 class FavoriteUpdate(BaseModel):
