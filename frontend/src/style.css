@@ -192,8 +192,8 @@
 .household-invite-form label{display:block;color:#c3c9d5;font-size:12px;margin-bottom:7px}
 .invite-input-row{display:flex;gap:9px;align-items:center}
 .invite-input-row input{flex:1;min-width:0;margin:0}
-.invite-input-row .primary{margin:0;white-space:nowrap}
-.primary.compact{width:auto;margin:0;padding:9px 11px;font-size:11px}
+.invite-input-row .primary{width:auto;margin:0;white-space:nowrap}
+.household-actions .primary.compact{width:auto;margin:0;padding:9px 11px;font-size:11px}
 .household-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .household-actions .secondary-button{white-space:nowrap}
 .pending-list{border-top:1px solid #303747;margin-top:18px;padding-top:16px}
