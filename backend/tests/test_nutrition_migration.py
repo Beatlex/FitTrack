@@ -25,7 +25,7 @@ def test_nutrition_migration_upgrades_legacy_tables_and_is_repeatable() -> None:
         ))
         connection.execute(text(
             "INSERT INTO meal_templates(id, owner_id, name, meal_type, created_at) "
-            "VALUES (1, 1, 'Overnight Oats', 'breakfast', CURRENT_TIMESTAMP)"
+            "VALUES (1, 1, 'Overnight Oats', 'breakfast', 1, CURRENT_TIMESTAMP)"
         ))
 
     upgrade(engine)
@@ -39,7 +39,7 @@ def test_nutrition_migration_upgrades_legacy_tables_and_is_repeatable() -> None:
         assert connection.execute(text("SELECT is_shared FROM foods WHERE id = 1")).scalar_one() == 1
         assert connection.execute(text("SELECT is_shared FROM meal_templates WHERE id = 1")).scalar_one() == 1
         assert connection.execute(text(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'meal_template_favorites'"
+            "SELECT COUNT(*) FROM meal_template_favorites WHERE user_id = 1 AND template_id = 1"
         )).scalar_one() == 1
 
     engine.dispose()
