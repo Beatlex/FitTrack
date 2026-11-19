@@ -275,7 +275,7 @@ def test_foods_and_recipes_are_shared_but_recipe_favorites_are_per_user(client: 
                         json={"is_favorite": True}).status_code == 200
     assert len(client.get("/api/nutrition/recipes?favorites_only=true").json()) == 1
     client.post("/api/auth/logout")
-    login(client, "shared-catalog-owner")
+    assert client.post("/api/auth/login", json={"username": "shared-catalog-owner", "password": "correct-horse-battery-staple"}).status_code == 200
     assert len(client.get("/api/nutrition/recipes").json()) == 1
     assert client.get("/api/nutrition/recipes?favorites_only=true").json() == []
     assert client.get("/api/nutrition/foods?q=zart").json()[0]["calories"] == 380
