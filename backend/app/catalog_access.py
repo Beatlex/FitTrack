@@ -194,3 +194,50 @@ def sync_recipe_ingredient_grants(db, recipe_id: int) -> None:
         RecipeAccess.recipe_id == recipe_id,
     )))
     _grant_recipe(db, recipe_id, users)
+
+
+
+def grant_food_to_user(db, food_id: int, user_id: int) -> None:
+    """Grant picker access to one user without changing any other member's rights."""
+    _grant_food(db, food_id, {user_id})
+    db.query(FoodHiddenByUser).filter(
+        FoodHiddenByUser.food_id == food_id,
+        FoodHiddenByUser.user_id == user_id,
+    ).delete(synchronize_session=False)
+
+
+def revoke_food_from_user(db, food_id: int, user_id: int) -> None:
+    """Revoke one user's general food access; recipe-context grants remain separate."""
+    db.query(FoodAccess).filter(
+        FoodAccess.food_id == food_id,
+        FoodAccess.user_id == user_id,
+    ).delete(synchronize_session=False)
+    db.query(FoodHiddenByUser).filter(
+        FoodHiddenByUser.food_id == food_id,
+        FoodHiddenByUser.user_id == user_id,
+    ).delete(synchronize_session=False)
+
+
+def grant_recipe_to_user(db, recipe_id: int, user_id: int) -> None:
+    """Grant one recipe and only its contextual ingredient-resolution rights."""
+    _grant_recipe(db, recipe_id, {user_id})
+    db.query(RecipeHiddenByUser).filter(
+        RecipeHiddenByUser.recipe_id == recipe_id,
+        RecipeHiddenByUser.user_id == user_id,
+    ).delete(synchronize_session=False)
+
+
+def revoke_recipe_from_user(db, recipe_id: int, user_id: int) -> None:
+    """Revoke a recipe and its contextual ingredient grants for one user."""
+    db.query(RecipeAccess).filter(
+        RecipeAccess.recipe_id == recipe_id,
+        RecipeAccess.user_id == user_id,
+    ).delete(synchronize_session=False)
+    db.query(RecipeIngredientAccess).filter(
+        RecipeIngredientAccess.recipe_id == recipe_id,
+        RecipeIngredientAccess.user_id == user_id,
+    ).delete(synchronize_session=False)
+    db.query(RecipeHiddenByUser).filter(
+        RecipeHiddenByUser.recipe_id == recipe_id,
+        RecipeHiddenByUser.user_id == user_id,
+    ).delete(synchronize_session=False)
