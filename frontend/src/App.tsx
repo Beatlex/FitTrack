@@ -9,6 +9,7 @@ import {
   House,
   Plus,
   Scale,
+  Settings,
   Utensils,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -16,6 +17,7 @@ import { api } from "./services/api";
 import BodyMeasurements from "./pages/BodyMeasurements";
 import Nutrition from "./pages/Nutrition";
 import HouseholdPage from "./pages/Household";
+import AccountSettings from "./pages/AccountSettings";
 
 type User = { id: number; username: string };
 type WeightPoint = { id: number; measured_at: string; weight_kg: number | null };
@@ -33,6 +35,7 @@ const navigation: NavigationItem[] = [
   { name: "Ernährung", icon: Apple },
   { name: "Statistiken", icon: Activity },
   { name: "Haushalt", icon: House },
+  { name: "Konto", icon: Settings },
 ];
 
 export default function App() {
@@ -117,6 +120,20 @@ export default function App() {
   }
 
 
+
+  function handleAccountDeleted() {
+    setUser(null);
+    setDashboard(null);
+    setNutritionToday(null);
+    setWeightHistory([]);
+    setUsername("");
+    setPassword("");
+    setAuthMode("login");
+    setSection("Übersicht");
+    setError("");
+    setNotice("Dein Konto wurde gelöscht.");
+  }
+
   async function logout() {
     try {
       await api("/api/auth/logout", { method: "POST" });
@@ -184,7 +201,7 @@ export default function App() {
         {error && <p className="error" role="alert">{error}</p>}
         {notice && <p className="success-message" role="status">{notice}</p>}
 
-        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Ernährung" ? <Nutrition onDataChanged={refreshDashboard} /> : section === "Haushalt" ? <HouseholdPage /> : section === "Übersicht" ? (
+        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Ernährung" ? <Nutrition onDataChanged={refreshDashboard} /> : section === "Haushalt" ? <HouseholdPage /> : section === "Konto" ? <AccountSettings username={user.username} onDeleted={handleAccountDeleted} /> : section === "Übersicht" ? (
           <>
             <section className="welcome">
               <div><small>SCHÖN, DASS DU DA BIST</small><h2>Bleib dran, {user.username}.</h2><p>Kleine Schritte. Sichtbare Fortschritte.</p></div>
