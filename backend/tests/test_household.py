@@ -193,3 +193,48 @@ def test_any_user_can_create_named_household_and_invite_multiple_members(client:
     private_catalog = client.get("/api/nutrition/foods?q=Private%20Haferflocken")
     assert private_catalog.status_code == 200
     assert len(private_catalog.json()) == 1
+
+
+def test_pre_household_foods_and_recipes_become_shared_after_household_join(client: TestClient) -> None:
+    register(client, "catalog-owner")
+    login(client, "catalog-owner")
+    oats = client.post("/api/nutrition/foods", json={
+        "name": "Vorhandene Haferflocken", "basis_g": 100, "calories": 370,
+        "protein_g": 13, "carbs_g": 59, "fat_g": 7,
+    })
+    assert oats.status_code == 201
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Altes Overnight Oats Rezept", "meal_type": "breakfast",
+        "ingredients": [{"food_id": oats.json()["id"], "amount_g": 60}],
+    })
+    assert recipe.status_code == 201
+    assert client.get("/api/nutrition/foods?q=Vorhandene").json()[0]["id"] == oats.json()["id"]
+
+    household = client.post("/api/household", json={"name": "Gemeinsamer Haushalt"})
+    assert household.status_code == 201
+    # The creator's pre-existing catalog is now attached to the new household.
+    assert client.get("/api/nutrition/foods?q=Vorhandene").json()[0]["id"] == oats.json()["id"]
+
+    register(client, "catalog-guest")
+    invitation = client.post("/api/household/invitations", json={"username": "catalog-guest"})
+    assert invitation.status_code == 201
+    client.post("/api/auth/logout")
+    login(client, "catalog-guest")
+    assert client.post(f"/api/household/invitations/{invitation.json()['id']}/accept").status_code == 200
+
+    shared_foods = client.get("/api/nutrition/foods?q=Vorhandene")
+    assert shared_foods.status_code == 200
+    assert [item["id"] for item in shared_foods.json()] == [oats.json()["id"]]
+    shared_recipes = client.get("/api/nutrition/recipes?q=Altes")
+    assert shared_recipes.status_code == 200
+    assert len(shared_recipes.json()) == 1
+    assert shared_recipes.json()[0]["name"] == "Altes Overnight Oats Rezept"
+    # Shared foods are usable as ingredients by the newly joined member.
+    logged = client.post("/api/nutrition/meals", json={
+        "meal_name": "Gemeinsames Frühstück", "meal_type": "breakfast",
+        "ingredients": [{"food_id": oats.json()["id"], "amount_g": 30}],
+    })
+    assert logged.status_code == 201
+    # Leaving restores the member's own catalog to private visibility.
+    assert client.delete("/api/household/leave").status_code == 204
+    assert client.get("/api/nutrition/foods?q=Vorhandene").json() == []
