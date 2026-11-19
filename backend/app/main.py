@@ -1,5 +1,6 @@
 import logging
 import os
+from math import isfinite
 from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -245,7 +246,7 @@ def add_food(data: dict, db: Session = Depends(get_db), user: User = Depends(cur
         )
     except (ValueError, TypeError):
         raise HTTPException(400, "Ungültige Nährwerte oder Zeit.")
-    if any(value < 0 or value > 100000 for value in values.values()):
+    if any(not isfinite(value) or value < 0 or value > 100000 for value in values.values()):
         raise HTTPException(400, "Nährwerte müssen zwischen 0 und 100000 liegen.")
     entry = FoodEntry(
         user_id=user.id,
