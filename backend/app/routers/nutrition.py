@@ -23,13 +23,19 @@ MACROS = ("calories", "protein_g", "carbs_g", "fat_g")
 
 def visible_foods_statement(user_id: int, db: Session):
     household_id = household_id_for_user(db, user_id)
-    return select(Food).where(
-        or_(Food.is_system.is_(True), Food.household_id == household_id)
-    )
+    if household_id is None:
+        return select(Food).where(
+            or_(Food.is_system.is_(True), (Food.household_id.is_(None) & (Food.owner_id == user_id)))
+        )
+    return select(Food).where(or_(Food.is_system.is_(True), Food.household_id == household_id))
 
 
 def visible_recipes_statement(user_id: int, db: Session):
     household_id = household_id_for_user(db, user_id)
+    if household_id is None:
+        return select(MealTemplate).where(
+            MealTemplate.household_id.is_(None), MealTemplate.owner_id == user_id
+        )
     return select(MealTemplate).where(MealTemplate.household_id == household_id)
 
 
@@ -73,7 +79,8 @@ def create_food(data: FoodCreate, db: Session = Depends(get_db),
     household_id = household_id_for_user(db, user.id)
     duplicate = db.scalar(select(Food).where(
         Food.is_active.is_(True),
-        Food.household_id == household_id,
+        (Food.household_id == household_id) if household_id is not None else
+        (Food.household_id.is_(None) & (Food.owner_id == user.id)),
         func.lower(Food.name) == data.name.casefold(),
     ))
     if duplicate is not None:
@@ -91,7 +98,9 @@ def update_food(food_id: int, data: FoodUpdate, db: Session = Depends(get_db),
                 user: User = Depends(current_user)):
     household_id = household_id_for_user(db, user.id)
     food = db.scalar(select(Food).where(
-        Food.id == food_id, Food.household_id == household_id,
+        Food.id == food_id,
+        (Food.household_id == household_id) if household_id is not None else
+        (Food.household_id.is_(None) & (Food.owner_id == user.id)),
         Food.is_active.is_(True), Food.is_system.is_(False),
     ))
     if food is None:
@@ -119,7 +128,8 @@ def archive_food(food_id: int, db: Session = Depends(get_db),
     household_id = household_id_for_user(db, user.id)
     food = db.scalar(select(Food).where(
         Food.id == food_id, Food.is_active.is_(True),
-        Food.household_id == household_id,
+        ((Food.household_id == household_id) if household_id is not None else
+         (Food.household_id.is_(None) & (Food.owner_id == user.id))),
         Food.is_system.is_(False),
     ))
     if food is None:
