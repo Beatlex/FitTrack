@@ -33,14 +33,14 @@ The current catalog uses `household_id` as the visibility boundary. This is suff
 - Migration must be additive, idempotent, transactional, and preserve IDs and historical nutrient snapshots.
 - The legacy `household_id` field is retained during rollout as provenance/compatibility metadata. It is not the long-term authorization source once grant-based checks are enabled.
 
-## Implementation sequence
+## Implementation status
 
-1. Add grant/hidden tables, constraints, indexes, and an idempotent migration.
-2. Backfill grants from existing owner and household membership data; add authorization helpers and tests.
-3. Switch catalog reads, edits, recipe ingredient validation, and logging to grant-based access.
-4. Add hide/restore operations and safe archive semantics for shared foods and recipes.
-5. Add account deletion as an explicit transactional service with ownership transfer and retention tests.
-6. Add audit metadata for edits and document conflict behavior for simultaneous edits.
+1. **Complete:** Grant/hidden tables, contextual recipe-ingredient grants, constraints, indexes, and idempotent migration/backfill.
+2. **Complete:** Catalog reads, writes, recipe ingredient resolution, meal logging, and household lifecycle now use the grant model.
+3. **Complete:** Personal hide/restore endpoints and safe removal behavior for shared records.
+4. **Complete:** Password- and username-confirmed account deletion with household-owner transfer, shared recipe ownership transfer, personal-data cleanup, and dependency retention.
+5. **Remaining:** Frontend controls for hide/restore and account deletion; dedicated per-item grant/revoke controls; audit metadata and simultaneous-edit conflict handling.
+6. **Follow-up:** Timezone standardization and database backup/migration operations.
 
 ## Security and integrity requirements
 
