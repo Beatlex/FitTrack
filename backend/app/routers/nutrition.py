@@ -21,21 +21,25 @@ router = APIRouter(prefix="/api/nutrition", tags=["nutrition"])
 MACROS = ("calories", "protein_g", "carbs_g", "fat_g")
 
 
+def food_scope(user_id: int, household_id: int | None):
+    """Shared household foods plus the current user's private catalog entries."""
+    clauses = [Food.household_id.is_(None) & (Food.owner_id == user_id)]
+    if household_id is not None:
+        clauses.append(Food.household_id == household_id)
+    return or_(*clauses)
+
+
 def visible_foods_statement(user_id: int, db: Session):
     household_id = household_id_for_user(db, user_id)
-    return select(Food).where(or_(
-        Food.is_system.is_(True),
-        Food.household_id == household_id if household_id is not None else False,
-        Food.household_id.is_(None) & (Food.owner_id == user_id),
-    ))
+    return select(Food).where(or_(Food.is_system.is_(True), food_scope(user_id, household_id)))
 
 
 def visible_recipes_statement(user_id: int, db: Session):
     household_id = household_id_for_user(db, user_id)
-    return select(MealTemplate).where(or_(
-        MealTemplate.household_id == household_id if household_id is not None else False,
-        MealTemplate.household_id.is_(None) & (MealTemplate.owner_id == user_id),
-    ))
+    clauses = [MealTemplate.household_id.is_(None) & (MealTemplate.owner_id == user_id)]
+    if household_id is not None:
+        clauses.append(MealTemplate.household_id == household_id)
+    return select(MealTemplate).where(or_(*clauses))
 
 
 def food_dict(food: Food) -> dict:
@@ -78,8 +82,7 @@ def create_food(data: FoodCreate, db: Session = Depends(get_db),
     household_id = household_id_for_user(db, user.id)
     duplicate = db.scalar(select(Food).where(
         Food.is_active.is_(True),
-        (Food.household_id == household_id) if household_id is not None else
-        (Food.household_id.is_(None) & (Food.owner_id == user.id)),
+        food_scope(user.id, household_id),
         func.lower(Food.name) == data.name.casefold(),
     ))
     if duplicate is not None:
@@ -106,7 +109,7 @@ def update_food(food_id: int, data: FoodUpdate, db: Session = Depends(get_db),
         raise HTTPException(404, "Bearbeitbares Lebensmittel nicht gefunden.")
     duplicate = db.scalar(select(Food).where(
         Food.id != food_id, Food.is_active.is_(True),
-        Food.household_id == household_id,
+        food_scope(user.id, household_id),
         func.lower(Food.name) == data.name.casefold(),
     ))
     if duplicate is not None:
@@ -127,8 +130,7 @@ def archive_food(food_id: int, db: Session = Depends(get_db),
     household_id = household_id_for_user(db, user.id)
     food = db.scalar(select(Food).where(
         Food.id == food_id, Food.is_active.is_(True),
-        ((Food.household_id == household_id) if household_id is not None else
-         (Food.household_id.is_(None) & (Food.owner_id == user.id))),
+        food_scope(user.id, household_id),
         Food.is_system.is_(False),
     ))
     if food is None:
