@@ -49,16 +49,14 @@ def test_legacy_food_endpoint_rejects_non_finite_nutrient_values(client: TestCli
     assert client.post("/api/auth/register", json=credentials).status_code == 201
     assert client.post("/api/auth/login", json=credentials).status_code == 200
 
-    for invalid_value in (float("nan"), float("inf"), float("-inf")):
-        response = client.post("/api/food", json={
-            "food_name": "Legacy meal",
-            "meal_type": "lunch",
-            "amount_g": 100,
-            "calories": invalid_value,
-            "protein_g": 10,
-            "carbs_g": 20,
-            "fat_g": 5,
-        })
+    prefix = '{"food_name":"Legacy meal","meal_type":"lunch","amount_g":100,"calories":'
+    suffix = ',"protein_g":10,"carbs_g":20,"fat_g":5}'
+    for invalid_value in ("NaN", "Infinity", "-Infinity"):
+        response = client.post(
+            "/api/food",
+            content=prefix + invalid_value + suffix,
+            headers={"Content-Type": "application/json"},
+        )
         assert response.status_code == 400
 
     valid = client.post("/api/food", json={
