@@ -182,7 +182,37 @@ def list_recipes(q: str = Query(default="", max_length=100), favorites_only: boo
     templates = db.scalars(statement.order_by(
         MealTemplate.is_favorite.desc(), MealTemplate.name, MealTemplate.id
     ).limit(100)).all()
-    return [recipe_dict(item, db, user.id) for item in templates]
+    if not templates:
+        return []
+    template_ids = [item.id for item in templates]
+    rows = db.scalars(select(MealTemplateIngredient).where(
+        MealTemplateIngredient.template_id.in_(template_ids)
+    ).order_by(MealTemplateIngredient.id)).all()
+    food_ids = {row.food_id for row in rows}
+    foods = db.scalars(visible_foods_statement(user.id).where(Food.id.in_(food_ids))).all()
+    by_food = {food.id: food for food in foods}
+    by_template: dict[int, list[MealTemplateIngredient]] = {}
+    for row in rows:
+        by_template.setdefault(row.template_id, []).append(row)
+    result = []
+    for template in templates:
+        ingredients = []
+        totals = {key: 0.0 for key in MACROS}
+        for row in by_template.get(template.id, []):
+            food = by_food.get(row.food_id)
+            if food is None:
+                continue
+            factor = row.amount_g / food.basis_g
+            nutrients = {key: round(getattr(food, key) * factor, 2) for key in MACROS}
+            for key, value in nutrients.items():
+                totals[key] += value
+            ingredients.append({"food_id": food.id, "food_name": food.name,
+                                "amount_g": row.amount_g, **nutrients})
+        result.append({"id": template.id, "name": template.name, "meal_type": template.meal_type,
+            "is_favorite": template.is_favorite, "ingredients": ingredients,
+            "amount_g": round(sum(item["amount_g"] for item in ingredients), 2),
+            **{key: round(value, 2) for key, value in totals.items()}})
+    return result
 
 
 @router.post("/recipes", status_code=201)
