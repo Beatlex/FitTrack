@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
+import app.main as main_module
 from app.migrate_user_timezone import upgrade
 from app.timezones import local_day_bounds
 
@@ -104,7 +105,7 @@ def test_timezone_preference_is_validated_and_returned(client: TestClient):
     assert client.get("/api/auth/me").json()["timezone_name"] == "Europe/Berlin"
 
 
-def test_nutrition_and_dashboard_share_dst_aware_local_day(client: TestClient):
+def test_nutrition_and_dashboard_share_dst_aware_local_day(client: TestClient, monkeypatch):
     register_and_login(client)
     assert client.patch(
         "/api/auth/timezone",
@@ -146,11 +147,10 @@ def test_nutrition_and_dashboard_share_dst_aware_local_day(client: TestClient):
     assert len(daily.json()["entries"]) == 2
     assert daily.json()["consumed"]["calories"] == 200
 
+    monkeypatch.setattr(main_module, "local_today", lambda _timezone: date(2026, 3, 29))
     dashboard = client.get("/api/dashboard")
     assert dashboard.status_code == 200
-    # The explicit day query above and dashboard's "today" use the same
-    # interval function; dashboard's date itself is the current local day.
-    assert "today" in dashboard.json()
+    assert dashboard.json()["today"]["calories"] == daily.json()["consumed"]["calories"]
 
 
 def test_local_day_bounds_use_real_iana_rules_not_fixed_offsets():
