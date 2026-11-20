@@ -241,3 +241,15 @@
 .account-delete-button:hover:not(:disabled){background:#673744}
 .account-delete-button:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:600px){.account-profile-panel,.account-danger-panel{padding:16px}.account-delete-button{width:100%}}
+
+
+/* Per-account timezone preference */
+.account-timezone-panel{padding:22px;display:grid;gap:12px}
+.account-timezone-panel h2{font-size:16px;margin:0}
+.account-timezone-panel>p{font-size:12px;color:#929bad;margin:0;line-height:1.6}
+.account-timezone-form{display:grid;gap:8px;max-width:480px}
+.account-timezone-form label{font-size:12px;color:#c3c9d5}
+.account-timezone-form input{width:100%;min-width:0;padding:11px 12px;background:#111620;border:1px solid #454052;color:#fff;border-radius:9px}
+.account-timezone-form small{font-size:10px;color:#929bad}
+.account-timezone-form .primary{justify-self:start;margin-top:5px}
+@media(max-width:600px){.account-timezone-panel{padding:16px}.account-timezone-form .primary{width:100%}}
