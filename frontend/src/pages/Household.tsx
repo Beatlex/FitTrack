@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { CalendarDays, Check, Crown, Home, LogOut, Plus, ShieldCheck, ShoppingBasket, UserMinus, Users, X } from "lucide-react";
 import { api } from "../services/api";
+import CatalogAuditSection, { type CatalogAuditEvent } from "./CatalogAuditSection";
 import CatalogAccessSection, {
   type CatalogAccessData,
   type CatalogItem,
@@ -27,6 +28,7 @@ const dateLabel = (value: string) => new Date(value).toLocaleDateString("de-DE")
 export default function HouseholdPage() {
   const [data, setData] = useState<ResponseData | null>(null);
   const [catalogAccess, setCatalogAccess] = useState<CatalogAccessData | null>(null);
+  const [auditEvents, setAuditEvents] = useState<CatalogAuditEvent[]>([]);
   const [username, setUsername] = useState("");
   const [householdName, setHouseholdName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -40,9 +42,15 @@ export default function HouseholdPage() {
       const next = await api<ResponseData>("/api/household");
       setData(next);
       if (next.household?.current_user_role === "owner") {
-        setCatalogAccess(await api<CatalogAccessData>("/api/household/catalog-access"));
+        const [access, events] = await Promise.all([
+          api<CatalogAccessData>("/api/household/catalog-access"),
+          api<CatalogAuditEvent[]>("/api/household/audit?limit=50"),
+        ]);
+        setCatalogAccess(access);
+        setAuditEvents(events);
       } else {
         setCatalogAccess(null);
+        setAuditEvents([]);
       }
       setError("");
     } catch (err) {
@@ -196,6 +204,8 @@ export default function HouseholdPage() {
       </section>
       <section className="household-sharing-note"><ShieldCheck size={17}/><p>Gemeinsam: Lebensmittel und Gerichte. Privat: Körperwerte, Tagesziele und protokollierte Mahlzeiten.</p></section>
       </>}
+
+        {isOwner && <CatalogAuditSection events={auditEvents} />}
 
         {isOwner && catalogAccess && (
           <CatalogAccessSection
