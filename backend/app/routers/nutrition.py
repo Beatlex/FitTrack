@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..audit_service import record_catalog_event
-from ..concurrency import commit_versioned_change
+from ..concurrency import commit_versioned_change, flush_versioned_change
 from ..dependencies import current_user
 from ..models import User
 from ..household_service import household_id_for_user
@@ -572,7 +572,9 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
         db.add(MealTemplateIngredient(
             template_id=template.id, food_id=item.food_id, amount_g=item.amount_g
         ))
-    db.flush()
+    flush_versioned_change(
+        db, detail="Dieses Gericht wurde gleichzeitig geändert. Bitte lade es neu und wiederhole deine Änderung."
+    )
     sync_recipe_ingredient_grants(db, template.id)
     after = {
         "name": template.name,
