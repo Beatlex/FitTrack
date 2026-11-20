@@ -16,7 +16,6 @@ def upgrade() -> None:
     from app import models, nutrition_models, household_models  # noqa: F401
     from app.migrate_catalog_access import upgrade as migrate_catalog_access
     from app.migrate_catalog_audit import upgrade as migrate_catalog_audit
-    from sqlalchemy import inspect, text
     from app.migrate_user_timezone import upgrade as migrate_user_timezone
 
     bind = op.get_bind()
@@ -28,9 +27,9 @@ def upgrade() -> None:
     migrate_user_timezone(bind)
     # Ensure the legacy users table receives the preference column even when
     # an older SQLite schema is introspected through a cached Inspector.
-    user_columns = {column["name"] for column in inspect(bind).get_columns("users")}
+    user_columns = {row[1] for row in bind.exec_driver_sql("PRAGMA table_info(users)")}
     if "timezone_name" not in user_columns:
-        bind.execute(text("ALTER TABLE users ADD COLUMN timezone_name VARCHAR(64)"))
+        bind.exec_driver_sql("ALTER TABLE users ADD COLUMN timezone_name VARCHAR(64)")
 
 
 def downgrade() -> None:
