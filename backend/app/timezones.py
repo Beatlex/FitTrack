@@ -1,6 +1,6 @@
 """Per-user timezone validation and local-calendar-day boundaries."""
 from datetime import date, datetime, time, timedelta, timezone
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 
 DEFAULT_TIMEZONE = "UTC"
@@ -42,3 +42,8 @@ def local_day_bounds(day: date, timezone_name: str | None) -> tuple[datetime, da
     start_local = datetime.combine(day, time.min, tzinfo=zone)
     next_local = datetime.combine(day + timedelta(days=1), time.min, tzinfo=zone)
     return start_local.astimezone(timezone.utc), next_local.astimezone(timezone.utc)
+
+
+def list_available_timezones() -> list[str]:
+    """Return the timezone identifiers the running backend can actually resolve."""
+    return sorted(available_timezones())
