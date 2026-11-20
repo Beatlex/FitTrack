@@ -23,7 +23,7 @@ from .account_service import delete_account as delete_account_data
 from .migrate_catalog_access import upgrade as migrate_catalog_access
 from .migrate_catalog_audit import upgrade as migrate_catalog_audit
 from .migrate_user_timezone import upgrade as migrate_user_timezone
-from .timezones import local_day_bounds, local_today, normalize_utc, validated_timezone
+from .timezones import list_available_timezones, local_day_bounds, local_today, normalize_utc, validated_timezone
 
 Base.metadata.create_all(bind=engine)
 
@@ -132,6 +132,12 @@ def logout(request: Request):
 @app.get("/api/auth/me")
 def me(user: User = Depends(current_user)):
     return {"id": user.id, "username": user.username, "timezone_name": user.timezone_name}
+
+
+@app.get("/api/auth/timezones")
+def get_available_timezones(user: User = Depends(current_user)):
+    """Expose only identifiers supported by this backend's timezone database."""
+    return list_available_timezones()
 
 
 @app.patch("/api/auth/timezone")
