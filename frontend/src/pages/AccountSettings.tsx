@@ -2,6 +2,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { api } from "../services/api";
 
+const TIMEZONE_GROUPS = [
+  { label: "Europa", zones: ["Europe/Berlin", "Europe/Vienna", "Europe/Zurich", "Europe/London", "Europe/Paris", "Europe/Amsterdam", "Europe/Madrid", "Europe/Rome", "Europe/Stockholm", "Europe/Warsaw", "Europe/Athens", "Europe/Istanbul"] },
+  { label: "Nord- und Südamerika", zones: ["America/St_Johns", "America/Halifax", "America/Toronto", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "America/Vancouver", "America/Mexico_City", "America/Sao_Paulo"] },
+  { label: "Asien", zones: ["Asia/Dubai", "Asia/Kolkata", "Asia/Bangkok", "Asia/Singapore", "Asia/Shanghai", "Asia/Tokyo", "Asia/Seoul"] },
+  { label: "Australien und Pazifik", zones: ["Australia/Perth", "Australia/Adelaide", "Australia/Sydney", "Pacific/Auckland", "Pacific/Honolulu"] },
+  { label: "Weitere", zones: ["UTC"] },
+] as const;
+
 type Props = {
   username: string;
   timezone: string;
@@ -78,18 +86,24 @@ export default function AccountSettings({ username, timezone, onTimezoneChanged,
         <h2>Zeitzone</h2>
         <p>Legt fest, welchem Kalendertag deine Mahlzeiten und Tageswerte zugeordnet werden. Zeitstempel werden weiterhin in UTC gespeichert.</p>
         <form className="account-timezone-form" onSubmit={saveTimezone}>
-          <label htmlFor="account-timezone">IANA-Zeitzone</label>
-          <input
+          <label htmlFor="account-timezone">Zeitzone auswählen</label>
+          <select
             id="account-timezone"
             value={timezoneDraft}
             onChange={event => setTimezoneDraft(event.target.value)}
-            placeholder="Europe/Berlin"
-            maxLength={64}
-            autoComplete="off"
-            spellCheck={false}
             required
-          />
-          <small>Beispiele: Europe/Berlin · Europe/Vienna · America/New_York</small>
+          >
+            <option value="" disabled>Bitte Zeitzone auswählen</option>
+            {timezoneDraft && !TIMEZONE_GROUPS.some(group => (group.zones as readonly string[]).includes(timezoneDraft)) && (
+              <option value={timezoneDraft}>{timezoneDraft} (aktuell gespeichert)</option>
+            )}
+            {TIMEZONE_GROUPS.map(group => (
+              <optgroup key={group.label} label={group.label}>
+                {group.zones.map(zone => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}
+              </optgroup>
+            ))}
+          </select>
+          <small>Die Auswahl berücksichtigt Sommer- und Winterzeit automatisch.</small>
           {timezoneError && <p className="error-message form-message" role="alert">{timezoneError}</p>}
           {timezoneNotice && <p className="success-message" role="status">{timezoneNotice}</p>}
           <button className="primary" type="submit" disabled={timezoneBusy || !timezoneDraft.trim() || timezoneDraft.trim() === timezone}>
