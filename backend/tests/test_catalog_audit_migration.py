@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, MetaData, Table, create_engine, inspect, select
+from sqlalchemy import Column, Integer, MetaData, Table, create_engine, inspect, text
 
 from app.migrate_catalog_audit import upgrade
 
@@ -25,7 +25,7 @@ def test_catalog_audit_migration_adds_versions_and_is_idempotent() -> None:
     assert "catalog_audit_events" in inspector.get_table_names()
 
     with engine.connect() as connection:
-        assert connection.execute(select(foods.c.version)).scalar_one() == 1
-        assert connection.execute(select(recipes.c.version)).scalar_one() == 1
+        assert connection.execute(text("SELECT version FROM foods")).scalar_one() == 1
+        assert connection.execute(text("SELECT version FROM meal_templates")).scalar_one() == 1
 
     engine.dispose()
