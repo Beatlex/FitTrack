@@ -75,12 +75,8 @@ export default function AccountSettings({ username, timezone, onTimezoneChanged,
         <p>Angemeldet als <b>{username}</b></p>
       </section>
       <section className="panel account-timezone-panel">
-        <div className="account-timezone-heading">
-          <div>
-            <h2>Zeitzone</h2>
-            <p>Legt fest, welchem Kalendertag deine Mahlzeiten und Tageswerte zugeordnet werden. Zeitstempel werden weiterhin in UTC gespeichert.</p>
-          </div>
-        </div>
+        <h2>Zeitzone</h2>
+        <p>Legt fest, welchem Kalendertag deine Mahlzeiten und Tageswerte zugeordnet werden. Zeitstempel werden weiterhin in UTC gespeichert.</p>
         <form className="account-timezone-form" onSubmit={saveTimezone}>
           <label htmlFor="account-timezone">IANA-Zeitzone</label>
           <input
