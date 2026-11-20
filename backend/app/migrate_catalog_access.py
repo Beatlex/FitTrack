@@ -3,13 +3,16 @@
 Run from backend: python -m app.migrate_catalog_access
 The migration is additive, transactional, and safe to run repeatedly.
 """
-from sqlalchemy import text
+from contextlib import nullcontext
+
+from sqlalchemy import Engine, Connection, text
 
 from .database import engine
 
 
-def upgrade(bind=engine) -> None:
-    with bind.begin() as connection:
+def upgrade(bind: Engine | Connection = engine) -> None:
+    transaction = bind.begin() if isinstance(bind, Engine) else nullcontext(bind)
+    with transaction as connection:
         statements = (
             """CREATE TABLE IF NOT EXISTS food_access (
                 id INTEGER PRIMARY KEY,
