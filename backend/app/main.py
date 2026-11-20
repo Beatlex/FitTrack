@@ -7,7 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from pwdlib import PasswordHash
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -16,17 +16,21 @@ from .dependencies import current_user
 from .concurrency import commit_versioned_change
 from .models import FoodEntry, Measurement, User
 from . import nutrition_models  # Register nutrition tables before create_all
+from .nutrition_models import MealEntry
 from . import household_models  # Register household tables before create_all
 from .schemas import MeasurementCreate, MeasurementUpdate
 from .account_service import delete_account as delete_account_data
 from .migrate_catalog_access import upgrade as migrate_catalog_access
 from .migrate_catalog_audit import upgrade as migrate_catalog_audit
+from .migrate_user_timezone import upgrade as migrate_user_timezone
+from .timezones import list_available_timezones, local_day_bounds, local_today, normalize_utc, validated_timezone
 
 Base.metadata.create_all(bind=engine)
 
-# Additive catalog ACL migration; safe to re-run during application startup.
+# Additive, idempotent bootstrap migrations for existing local SQLite databases.
 migrate_catalog_access()
 migrate_catalog_audit()
+migrate_user_timezone()
 password_hasher = PasswordHash.recommended()
 
 is_production = os.getenv("APP_ENV", "development").lower() == "production"
@@ -41,6 +45,10 @@ if len(session_secret) < 32:
 cookie_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 if is_production and not cookie_secure:
     raise RuntimeError("COOKIE_SECURE=true ist im Produktionsbetrieb erforderlich.")
+
+class TimezoneUpdateRequest(BaseModel):
+    timezone_name: str = Field(min_length=1, max_length=64)
+
 
 class AccountDeletionRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
@@ -64,11 +72,7 @@ app.add_middleware(
 
 
 def measurement_to_dict(entry: Measurement) -> dict:
-    measured_at = entry.measured_at
-    if measured_at.tzinfo is None:
-        measured_at = measured_at.replace(tzinfo=timezone.utc)
-    else:
-        measured_at = measured_at.astimezone(timezone.utc)
+    measured_at = normalize_utc(entry.measured_at)
     fields = ("weight_kg", "waist_cm", "chest_cm", "hip_cm", "arm_cm", "thigh_cm")
     return {
         "id": entry.id,
@@ -81,7 +85,7 @@ def food_to_dict(entry: FoodEntry) -> dict:
     fields = ("meal_type", "food_name", "amount_g", "calories", "protein_g", "carbs_g", "fat_g")
     return {
         "id": entry.id,
-        "consumed_at": entry.consumed_at.isoformat(),
+        "consumed_at": normalize_utc(entry.consumed_at).isoformat(),
         **{field: getattr(entry, field) for field in fields},
     }
 
@@ -116,7 +120,7 @@ def login(data: dict, request: Request, db: Session = Depends(get_db)):
         raise HTTPException(401, "Benutzername oder Passwort falsch.")
     request.session.clear()
     request.session["user_id"] = user.id
-    return {"id": user.id, "username": user.username}
+    return {"id": user.id, "username": user.username, "timezone_name": user.timezone_name}
 
 
 @app.post("/api/auth/logout")
@@ -127,7 +131,29 @@ def logout(request: Request):
 
 @app.get("/api/auth/me")
 def me(user: User = Depends(current_user)):
-    return {"id": user.id, "username": user.username}
+    return {"id": user.id, "username": user.username, "timezone_name": user.timezone_name}
+
+
+@app.get("/api/auth/timezones")
+def get_available_timezones(user: User = Depends(current_user)):
+    """Expose only identifiers supported by this backend's timezone database."""
+    return list_available_timezones()
+
+
+@app.patch("/api/auth/timezone")
+def update_timezone(
+    data: TimezoneUpdateRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    try:
+        validated_timezone(data.timezone_name)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    user.timezone_name = data.timezone_name
+    db.commit()
+    db.refresh(user)
+    return {"timezone_name": user.timezone_name}
 
 
 
@@ -167,7 +193,7 @@ def add_measurement(
     user: User = Depends(current_user),
 ):
     values = data.model_dump(exclude={"measured_at"})
-    measured_at = data.measured_at or datetime.now(timezone.utc)
+    measured_at = normalize_utc(data.measured_at or datetime.now(timezone.utc))
     entry = Measurement(user_id=user.id, measured_at=measured_at, **values)
     db.add(entry)
     db.commit()
@@ -195,7 +221,7 @@ def update_measurement(
     for field, value in changes.items():
         if field == "measured_at" and value is None:
             raise HTTPException(400, "Das Messdatum darf nicht leer sein.")
-        setattr(entry, field, value)
+        setattr(entry, field, normalize_utc(value) if field == "measured_at" else value)
 
     measurement_fields = ("weight_kg", "waist_cm", "chest_cm", "hip_cm", "arm_cm", "thigh_cm")
     if not any(getattr(entry, field) is not None for field in measurement_fields):
@@ -244,7 +270,7 @@ def add_food(data: dict, db: Session = Depends(get_db), user: User = Depends(cur
     try:
         fields = ("amount_g", "calories", "protein_g", "carbs_g", "fat_g")
         values = {field: float(data.get(field) or 0) for field in fields}
-        consumed_at = (
+        consumed_at = normalize_utc(
             datetime.fromisoformat(data["consumed_at"])
             if data.get("consumed_at")
             else datetime.now(timezone.utc)
@@ -268,11 +294,13 @@ def add_food(data: dict, db: Session = Depends(get_db), user: User = Depends(cur
 
 @app.get("/api/dashboard")
 def dashboard(db: Session = Depends(get_db), user: User = Depends(current_user)):
-    today = datetime.now().date()
+    today = local_today(user.timezone_name)
+    start, end = local_day_bounds(today, user.timezone_name)
     entries = db.scalars(
-        select(FoodEntry).where(
-            FoodEntry.user_id == user.id,
-            func.date(FoodEntry.consumed_at) == today,
+        select(MealEntry).where(
+            MealEntry.user_id == user.id,
+            MealEntry.consumed_at >= start,
+            MealEntry.consumed_at < end,
         )
     ).all()
     latest = db.scalar(

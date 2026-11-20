@@ -1,17 +1,92 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { api } from "../services/api";
 
+const TIMEZONE_REGION_LABELS: Record<string, string> = {
+  Africa: "Afrika",
+  America: "Nord- und Südamerika",
+  Antarctica: "Antarktis",
+  Arctic: "Arktis",
+  Asia: "Asien",
+  Atlantic: "Atlantik",
+  Australia: "Australien",
+  Europe: "Europa",
+  Indian: "Indischer Ozean",
+  Pacific: "Pazifik",
+  Etc: "Weitere Zeitzonen",
+  Weitere: "Weitere",
+};
+
+function groupTimezones(zones: string[]): Array<{ label: string; zones: string[] }> {
+  const groups = new Map<string, string[]>();
+  for (const zone of zones) {
+    const region = zone.includes("/") ? zone.split("/", 1)[0] : "Weitere";
+    const entries = groups.get(region) ?? [];
+    entries.push(zone);
+    groups.set(region, entries);
+  }
+  return Array.from(groups, ([region, entries]) => ({
+    label: TIMEZONE_REGION_LABELS[region] ?? region,
+    zones: entries,
+  }));
+}
+
 type Props = {
   username: string;
+  timezone: string;
+  onTimezoneChanged: (timezone_name: string) => void;
   onDeleted: () => void;
 };
 
-export default function AccountSettings({ username, onDeleted }: Props) {
+export default function AccountSettings({ username, timezone, onTimezoneChanged, onDeleted }: Props) {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [timezoneDraft, setTimezoneDraft] = useState(timezone);
+  const [timezoneBusy, setTimezoneBusy] = useState(false);
+  const [timezoneError, setTimezoneError] = useState("");
+  const [timezoneNotice, setTimezoneNotice] = useState("");
+  const [availableTimezones, setAvailableTimezones] = useState<string[]>([]);
+  const [timezoneListError, setTimezoneListError] = useState("");
+
+  useEffect(() => setTimezoneDraft(timezone), [timezone]);
+
+  useEffect(() => {
+    let active = true;
+    api<string[]>("/api/auth/timezones")
+      .then(zones => {
+        if (active) setAvailableTimezones(zones);
+      })
+      .catch((err: Error) => {
+        if (active) setTimezoneListError(err.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const timezoneGroups = groupTimezones(availableTimezones);
+
+  async function saveTimezone(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setTimezoneBusy(true);
+    setTimezoneError("");
+    setTimezoneNotice("");
+    try {
+      const result = await api<{ timezone_name: string }>("/api/auth/timezone", {
+        method: "PATCH",
+        body: JSON.stringify({ timezone_name: timezoneDraft.trim() }),
+      });
+      setTimezoneDraft(result.timezone_name);
+      onTimezoneChanged(result.timezone_name);
+      setTimezoneNotice("Zeitzone wurde gespeichert.");
+    } catch (err) {
+      setTimezoneError(err instanceof Error ? err.message : "Zeitzone konnte nicht gespeichert werden.");
+    } finally {
+      setTimezoneBusy(false);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,6 +120,43 @@ export default function AccountSettings({ username, onDeleted }: Props) {
       <section className="panel account-profile-panel">
         <h2>Kontoverwaltung</h2>
         <p>Angemeldet als <b>{username}</b></p>
+      </section>
+      <section className="panel account-timezone-panel">
+        <h2>Zeitzone</h2>
+        <p>Legt fest, welchem Kalendertag deine Mahlzeiten und Tageswerte zugeordnet werden. Zeitstempel werden weiterhin in UTC gespeichert.</p>
+        <form className="account-timezone-form" onSubmit={saveTimezone}>
+          <label htmlFor="account-timezone">Zeitzone auswählen</label>
+          <select
+            id="account-timezone"
+            value={timezoneDraft}
+            onChange={event => {
+              setTimezoneDraft(event.target.value);
+              setTimezoneError("");
+              setTimezoneNotice("");
+            }}
+            disabled={availableTimezones.length === 0 || timezoneBusy}
+            required
+          >
+            <option value="" disabled>
+              {availableTimezones.length ? "Bitte Zeitzone auswählen" : "Zeitzonen werden geladen …"}
+            </option>
+            {timezoneDraft && !availableTimezones.includes(timezoneDraft) && (
+              <option value={timezoneDraft}>{timezoneDraft} (bisher gespeichert)</option>
+            )}
+            {timezoneGroups.map(group => (
+              <optgroup key={group.label} label={group.label}>
+                {group.zones.map(zone => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}
+              </optgroup>
+            ))}
+          </select>
+          <small>Alle Optionen stammen aus der Zeitzonendatenbank des Servers. Sommer- und Winterzeit werden automatisch berücksichtigt.</small>
+          {timezoneListError && <p className="error-message form-message" role="alert">Zeitzonen konnten nicht geladen werden: {timezoneListError}</p>}
+          {timezoneError && <p className="error-message form-message" role="alert">{timezoneError}</p>}
+          {timezoneNotice && <p className="success-message" role="status">{timezoneNotice}</p>}
+          <button className="primary" type="submit" disabled={timezoneBusy || !timezoneDraft.trim() || timezoneDraft.trim() === timezone}>
+            {timezoneBusy ? "Wird gespeichert …" : "Zeitzone speichern"}
+          </button>
+        </form>
       </section>
       <section className="panel account-danger-panel">
         <div className="account-danger-heading">

@@ -17,7 +17,6 @@ const keys: { key: keyof Values; label: string; unit: string }[] = [
   { key: "fat_g", label: "Fett", unit: "g" },
 ];
 const empty: Values = { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
-const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 const n = (v: number) => v.toLocaleString("de-DE", { maximumFractionDigits: 1 });
 const mealLabels: Record<string, string> = { breakfast: "Frühstück", lunch: "Mittagessen", dinner: "Abendessen", snack: "Snack" };
 
@@ -61,7 +60,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
   const [busy, setBusy] = useState(false);
 
   async function loadDay() {
-    const data = await api<Daily>(`/api/nutrition/day?day=${today()}`);
+    const data = await api<Daily>("/api/nutrition/day");
     setDaily(data);
     if (data.goals) setGoals(data.goals);
   }

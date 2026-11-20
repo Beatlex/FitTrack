@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import delete, func, or_, select
@@ -9,6 +9,7 @@ from ..audit_service import record_catalog_event
 from ..concurrency import commit_versioned_change, flush_versioned_change
 from ..dependencies import current_user
 from ..models import User
+from ..timezones import local_day_bounds, local_today, normalize_utc
 from ..household_service import household_id_for_user
 from ..catalog_access import (
     visible_foods_statement as acl_visible_foods_statement,
@@ -56,7 +57,7 @@ def ingredient_dict(item: MealIngredient) -> dict:
 def meal_dict(meal: MealEntry, ingredients: list[MealIngredient] | None = None) -> dict:
     return {
         "id": meal.id, "food_id": meal.food_id, "food_name": meal.food_name,
-        "consumed_at": meal.consumed_at.isoformat(), "meal_type": meal.meal_type,
+        "consumed_at": normalize_utc(meal.consumed_at).isoformat(), "meal_type": meal.meal_type,
         "amount_g": meal.amount_g, **{key: getattr(meal, key) for key in MACROS},
         "ingredients": [ingredient_dict(item) for item in (ingredients or [])],
     }
@@ -260,13 +261,13 @@ def set_goals(data: GoalUpdate, db: Session = Depends(get_db),
 
 
 @router.get("/day")
-def get_day(day: date = Query(default_factory=date.today), db: Session = Depends(get_db),
+def get_day(day: date | None = None, db: Session = Depends(get_db),
             user: User = Depends(current_user)):
-    start = datetime.combine(day, time.min, tzinfo=timezone.utc)
-    end = datetime.combine(day, time.max, tzinfo=timezone.utc)
+    target_day = day or local_today(user.timezone_name)
+    start, end = local_day_bounds(target_day, user.timezone_name)
     meals = db.scalars(select(MealEntry).where(
         MealEntry.user_id == user.id, MealEntry.consumed_at >= start,
-        MealEntry.consumed_at <= end,
+        MealEntry.consumed_at < end,
     ).order_by(MealEntry.consumed_at, MealEntry.id)).all()
     meal_ids = [meal.id for meal in meals]
     ingredient_rows = db.scalars(select(MealIngredient).where(
@@ -282,7 +283,7 @@ def get_day(day: date = Query(default_factory=date.today), db: Session = Depends
         key: round(goals[key] - consumed[key], 2) for key in MACROS
     }
     return {
-        "date": day.isoformat(), "goals": goals, "consumed": consumed,
+        "date": target_day.isoformat(), "goals": goals, "consumed": consumed,
         "remaining": remaining,
         "entries": [meal_dict(meal, by_meal.get(meal.id, [])) for meal in meals],
     }
@@ -316,8 +317,7 @@ def add_meal(data: MealCreate, db: Session = Depends(get_db),
             "amount_g": amount_g, **nutrients,
         })
     consumed_at = data.consumed_at or datetime.now(timezone.utc)
-    if consumed_at.tzinfo is None:
-        consumed_at = consumed_at.replace(tzinfo=timezone.utc)
+    consumed_at = normalize_utc(consumed_at)
     meal = MealEntry(
         user_id=user.id,
         food_id=resolved[0]["food_id"] if len(resolved) == 1 else None,
