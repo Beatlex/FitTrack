@@ -86,6 +86,16 @@ def register_and_login(client: TestClient, username: str = "timezone-user") -> N
     assert client.post("/api/household", json={"name": "Timezone household"}).status_code == 201
 
 
+def test_timezone_choices_match_server_timezone_database(client: TestClient):
+    register_and_login(client)
+    response = client.get("/api/auth/timezones")
+    assert response.status_code == 200
+    zones = response.json()
+    assert "Europe/Berlin" in zones
+    assert "UTC" in zones
+    assert zones == sorted(set(zones))
+
+
 def test_timezone_preference_is_validated_and_returned(client: TestClient):
     register_and_login(client)
     assert client.get("/api/auth/me").json()["timezone_name"] is None
