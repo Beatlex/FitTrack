@@ -5,6 +5,8 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..audit_service import record_catalog_event
+from ..concurrency import commit_versioned_change
 from ..dependencies import current_user
 from ..models import User
 from ..household_service import household_id_for_user
@@ -38,7 +40,7 @@ def visible_recipes_statement(user_id: int, db: Session):
 def food_dict(food: Food) -> dict:
     return {
         "id": food.id, "name": food.name, "brand": food.brand,
-        "basis_g": food.basis_g, "is_system": food.is_system,
+        "basis_g": food.basis_g, "is_system": food.is_system, "version": food.version,
         **{key: getattr(food, key) for key in MACROS},
     }
 
@@ -56,6 +58,28 @@ def meal_dict(meal: MealEntry, ingredients: list[MealIngredient] | None = None) 
         "consumed_at": meal.consumed_at.isoformat(), "meal_type": meal.meal_type,
         "amount_g": meal.amount_g, **{key: getattr(meal, key) for key in MACROS},
         "ingredients": [ingredient_dict(item) for item in (ingredients or [])],
+    }
+
+
+def food_audit_state(food: Food) -> dict:
+    return {
+        "name": food.name, "brand": food.brand, "basis_g": food.basis_g,
+        **{key: getattr(food, key) for key in MACROS},
+        "is_active": food.is_active,
+    }
+
+
+def recipe_audit_state(template: MealTemplate, db: Session) -> dict:
+    ingredients = db.scalars(select(MealTemplateIngredient).where(
+        MealTemplateIngredient.template_id == template.id
+    ).order_by(MealTemplateIngredient.id)).all()
+    return {
+        "name": template.name,
+        "meal_type": template.meal_type,
+        "ingredients": [
+            {"food_id": item.food_id, "amount_g": item.amount_g}
+            for item in ingredients
+        ],
     }
 
 
@@ -85,6 +109,11 @@ def create_food(data: FoodCreate, db: Session = Depends(get_db),
     db.add(food)
     db.flush()
     grant_new_food(db, food, user.id, household_id)
+    record_catalog_event(
+        db, actor=user, household_id=household_id,
+        entity_type="food", entity_id=food.id, entity_name=food.name,
+        action="created", changes={"after": food_audit_state(food)},
+    )
     db.commit()
     db.refresh(food)
     return food_dict(food)
@@ -98,6 +127,9 @@ def update_food(food_id: int, data: FoodUpdate, db: Session = Depends(get_db),
     ))
     if food is None:
         raise HTTPException(404, "Bearbeitbares Lebensmittel nicht gefunden.")
+    if data.version != food.version:
+        raise HTTPException(409, "Dieses Lebensmittel wurde zwischenzeitlich geändert. Bitte lade den Eintrag neu.")
+    before = food_audit_state(food)
     duplicate = db.scalar(select(Food).where(
         Food.id != food_id, Food.is_active.is_(True),
         Food.id.in_(select(acl_visible_foods_statement(user.id).subquery().c.id)),
@@ -110,7 +142,15 @@ def update_food(food_id: int, data: FoodUpdate, db: Session = Depends(get_db),
     food.basis_g = data.basis_g
     for key in MACROS:
         setattr(food, key, getattr(data, key))
-    db.commit()
+    after = food_audit_state(food)
+    record_catalog_event(
+        db, actor=user, household_id=food.household_id,
+        entity_type="food", entity_id=food.id, entity_name=food.name,
+        action="updated", changes={"before": before, "after": after},
+    )
+    commit_versioned_change(
+        db, detail="Dieses Lebensmittel wurde gleichzeitig geändert. Bitte lade es neu und wiederhole deine Änderung."
+    )
     db.refresh(food)
     return food_dict(food)
 
@@ -141,7 +181,14 @@ def archive_food(food_id: int, db: Session = Depends(get_db),
             db.add(FoodHiddenByUser(food_id=food_id, user_id=user.id))
     else:
         # Private archive preserves meal-entry foreign keys and historical snapshots.
+        before = food_audit_state(food)
         food.is_active = False
+        after = food_audit_state(food)
+        record_catalog_event(
+            db, actor=user, household_id=food.household_id,
+            entity_type="food", entity_id=food.id, entity_name=food.name,
+            action="archived", changes={"before": before, "after": after},
+        )
     db.commit()
     return Response(status_code=204)
 
@@ -333,7 +380,7 @@ def recipe_dict(template: MealTemplate, db: Session, user_id: int) -> dict:
     )) is not None
     return {
         "id": template.id, "name": template.name, "meal_type": template.meal_type,
-        "is_favorite": is_favorite, "ingredients": ingredients,
+        "version": template.version, "is_favorite": is_favorite, "ingredients": ingredients,
         "amount_g": round(sum(item["amount_g"] for item in ingredients), 2),
         **{key: round(value, 2) for key, value in totals.items()},
     }
@@ -390,7 +437,7 @@ def list_recipes(q: str = Query(default="", max_length=100), favorites_only: boo
             })
         result.append({
             "id": template.id, "name": template.name, "meal_type": template.meal_type,
-            "is_favorite": template.id in favorite_ids, "ingredients": ingredients,
+            "version": template.version, "is_favorite": template.id in favorite_ids, "ingredients": ingredients,
             "amount_g": round(sum(item["amount_g"] for item in ingredients), 2),
             **{key: round(value, 2) for key, value in totals.items()},
         })
@@ -488,6 +535,11 @@ def create_recipe(data: RecipeCreate, db: Session = Depends(get_db),
         ))
     db.flush()
     grant_new_recipe(db, template, user.id, household_id)
+    record_catalog_event(
+        db, actor=user, household_id=household_id,
+        entity_type="recipe", entity_id=template.id, entity_name=template.name,
+        action="created", changes={"after": recipe_audit_state(template, db)},
+    )
     db.commit()
     db.refresh(template)
     return recipe_dict(template, db, user.id)
@@ -501,6 +553,9 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
     ))
     if template is None:
         raise HTTPException(404, "Gericht nicht gefunden.")
+    if data.version != template.version:
+        raise HTTPException(409, "Dieses Gericht wurde zwischenzeitlich geändert. Bitte lade den Eintrag neu.")
+    before = recipe_audit_state(template, db)
     duplicate = db.scalar(visible_recipes_statement(user.id, db).where(
         func.lower(MealTemplate.name) == data.name.casefold(),
         MealTemplate.id != recipe_id,
@@ -519,7 +574,22 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
         ))
     db.flush()
     sync_recipe_ingredient_grants(db, template.id)
-    db.commit()
+    after = {
+        "name": template.name,
+        "meal_type": template.meal_type,
+        "ingredients": [
+            {"food_id": item.food_id, "amount_g": item.amount_g}
+            for item in data.ingredients
+        ],
+    }
+    record_catalog_event(
+        db, actor=user, household_id=template.household_id,
+        entity_type="recipe", entity_id=template.id, entity_name=template.name,
+        action="updated", changes={"before": before, "after": after},
+    )
+    commit_versioned_change(
+        db, detail="Dieses Gericht wurde gleichzeitig geändert. Bitte lade es neu und wiederhole deine Änderung."
+    )
     db.refresh(template)
     return recipe_dict(template, db, user.id)
 
@@ -599,6 +669,12 @@ def delete_recipe(recipe_id: int, db: Session = Depends(get_db),
         if marker is None:
             db.add(RecipeHiddenByUser(recipe_id=recipe_id, user_id=user.id))
     else:
+        before = recipe_audit_state(template, db)
+        record_catalog_event(
+            db, actor=user, household_id=template.household_id,
+            entity_type="recipe", entity_id=template.id, entity_name=template.name,
+            action="deleted", changes={"before": before},
+        )
         db.execute(delete(MealTemplateIngredient).where(
             MealTemplateIngredient.template_id == template.id
         ))
@@ -606,5 +682,10 @@ def delete_recipe(recipe_id: int, db: Session = Depends(get_db),
             MealTemplateFavorite.template_id == template.id
         ))
         db.delete(template)
-    db.commit()
+    if other_grants:
+        db.commit()
+    else:
+        commit_versioned_change(
+            db, detail="Dieses Gericht wurde gleichzeitig geändert. Bitte lade es neu und wiederhole deine Aktion."
+        )
     return Response(status_code=204)
