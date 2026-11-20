@@ -493,3 +493,27 @@ def test_catalog_versions_prevent_lost_updates_and_audit_changes(client: TestCli
     assert food_update_event["actor_username"] == "catalog-audit-owner"
     assert food_update_event["changes"]["before"]["calories"] == 100
     assert food_update_event["changes"]["after"]["calories"] == 120
+
+
+def test_hidden_catalog_list_routes_are_not_shadowed_by_id_routes(client: TestClient) -> None:
+    login(client, "hidden-route-regression")
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Hidden Route Food", "basis_g": 100, "calories": 100,
+        "protein_g": 5, "carbs_g": 10, "fat_g": 2,
+    })
+    assert food.status_code == 201
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Hidden Route Recipe", "meal_type": "lunch",
+        "ingredients": [{"food_id": food.json()["id"], "amount_g": 100}],
+    })
+    assert recipe.status_code == 201
+
+    assert client.post(f"/api/nutrition/foods/{food.json()['id']}/hide").status_code == 204
+    assert client.post(f"/api/nutrition/recipes/{recipe.json()['id']}/hide").status_code == 204
+
+    hidden_foods = client.get("/api/nutrition/foods/hidden")
+    hidden_recipes = client.get("/api/nutrition/recipes/hidden")
+    assert hidden_foods.status_code == 200
+    assert [item["id"] for item in hidden_foods.json()] == [food.json()["id"]]
+    assert hidden_recipes.status_code == 200
+    assert [item["id"] for item in hidden_recipes.json()] == [recipe.json()["id"]]
