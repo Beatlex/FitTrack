@@ -30,7 +30,7 @@ Jede Sicherung besteht aus:
 - SQLite-Datenbankdatei, erstellt über `sqlite3.Connection.backup()`
 - gleichnamigem JSON-Manifest mit Manifestversion, UTC-Erstellungszeit, Typ, Datenbankdateiname, SHA-256, Alembic-Revision und Prüfstatus.
 
-Automatische Rotation:
+Der Scheduler legt täglich um 02:00 UTC eine Sicherung an, solange FitTrack läuft. Beim nächsten App-Start werden ausgefallene Sicherungstage nachgeholt. Automatische Rotation:
 - maximal 7 tägliche Sicherungen
 - maximal 4 wöchentliche Sicherungen
 - `pre-migration`-Sicherungen werden niemals durch die Rotation gelöscht.
