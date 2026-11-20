@@ -22,7 +22,7 @@ class FoodCreate(Nutrients):
         return value
 
 class FoodUpdate(FoodCreate):
-    version: int = Field(gt=0)
+    version: int = Field(default=1, gt=0)
 
 class GoalUpdate(Nutrients):
     pass
@@ -75,7 +75,7 @@ class RecipeCreate(BaseModel):
 
 
 class RecipeUpdate(RecipeCreate):
-    version: int = Field(gt=0)
+    version: int = Field(default=1, gt=0)
 
 
 class FavoriteUpdate(BaseModel):
