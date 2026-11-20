@@ -2,13 +2,34 @@ import { useEffect, useState, type FormEvent } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { api } from "../services/api";
 
-const TIMEZONE_GROUPS = [
-  { label: "Europa", zones: ["Europe/Berlin", "Europe/Vienna", "Europe/Zurich", "Europe/London", "Europe/Paris", "Europe/Amsterdam", "Europe/Madrid", "Europe/Rome", "Europe/Stockholm", "Europe/Warsaw", "Europe/Athens", "Europe/Istanbul"] },
-  { label: "Nord- und Südamerika", zones: ["America/St_Johns", "America/Halifax", "America/Toronto", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "America/Vancouver", "America/Mexico_City", "America/Sao_Paulo"] },
-  { label: "Asien", zones: ["Asia/Dubai", "Asia/Kolkata", "Asia/Bangkok", "Asia/Singapore", "Asia/Shanghai", "Asia/Tokyo", "Asia/Seoul"] },
-  { label: "Australien und Pazifik", zones: ["Australia/Perth", "Australia/Adelaide", "Australia/Sydney", "Pacific/Auckland", "Pacific/Honolulu"] },
-  { label: "Weitere", zones: ["UTC"] },
-] as const;
+const TIMEZONE_REGION_LABELS: Record<string, string> = {
+  Africa: "Afrika",
+  America: "Nord- und Südamerika",
+  Antarctica: "Antarktis",
+  Arctic: "Arktis",
+  Asia: "Asien",
+  Atlantic: "Atlantik",
+  Australia: "Australien",
+  Europe: "Europa",
+  Indian: "Indischer Ozean",
+  Pacific: "Pazifik",
+  Etc: "Weitere Zeitzonen",
+  Weitere: "Weitere",
+};
+
+function groupTimezones(zones: string[]): Array<{ label: string; zones: string[] }> {
+  const groups = new Map<string, string[]>();
+  for (const zone of zones) {
+    const region = zone.includes("/") ? zone.split("/", 1)[0] : "Weitere";
+    const entries = groups.get(region) ?? [];
+    entries.push(zone);
+    groups.set(region, entries);
+  }
+  return Array.from(groups, ([region, entries]) => ({
+    label: TIMEZONE_REGION_LABELS[region] ?? region,
+    zones: entries,
+  }));
+}
 
 type Props = {
   username: string;
@@ -26,8 +47,26 @@ export default function AccountSettings({ username, timezone, onTimezoneChanged,
   const [timezoneBusy, setTimezoneBusy] = useState(false);
   const [timezoneError, setTimezoneError] = useState("");
   const [timezoneNotice, setTimezoneNotice] = useState("");
+  const [availableTimezones, setAvailableTimezones] = useState<string[]>([]);
+  const [timezoneListError, setTimezoneListError] = useState("");
 
   useEffect(() => setTimezoneDraft(timezone), [timezone]);
+
+  useEffect(() => {
+    let active = true;
+    api<string[]>("/api/auth/timezones")
+      .then(zones => {
+        if (active) setAvailableTimezones(zones);
+      })
+      .catch((err: Error) => {
+        if (active) setTimezoneListError(err.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const timezoneGroups = groupTimezones(availableTimezones);
 
   async function saveTimezone(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,20 +129,28 @@ export default function AccountSettings({ username, timezone, onTimezoneChanged,
           <select
             id="account-timezone"
             value={timezoneDraft}
-            onChange={event => setTimezoneDraft(event.target.value)}
+            onChange={event => {
+              setTimezoneDraft(event.target.value);
+              setTimezoneError("");
+              setTimezoneNotice("");
+            }}
+            disabled={availableTimezones.length === 0 || timezoneBusy}
             required
           >
-            <option value="" disabled>Bitte Zeitzone auswählen</option>
-            {timezoneDraft && !TIMEZONE_GROUPS.some(group => (group.zones as readonly string[]).includes(timezoneDraft)) && (
-              <option value={timezoneDraft}>{timezoneDraft} (aktuell gespeichert)</option>
+            <option value="" disabled>
+              {availableTimezones.length ? "Bitte Zeitzone auswählen" : "Zeitzonen werden geladen …"}
+            </option>
+            {timezoneDraft && !availableTimezones.includes(timezoneDraft) && (
+              <option value={timezoneDraft}>{timezoneDraft} (bisher gespeichert)</option>
             )}
-            {TIMEZONE_GROUPS.map(group => (
+            {timezoneGroups.map(group => (
               <optgroup key={group.label} label={group.label}>
                 {group.zones.map(zone => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}
               </optgroup>
             ))}
           </select>
-          <small>Die Auswahl berücksichtigt Sommer- und Winterzeit automatisch.</small>
+          <small>Alle Optionen stammen aus der Zeitzonendatenbank des Servers. Sommer- und Winterzeit werden automatisch berücksichtigt.</small>
+          {timezoneListError && <p className="error-message form-message" role="alert">Zeitzonen konnten nicht geladen werden: {timezoneListError}</p>}
           {timezoneError && <p className="error-message form-message" role="alert">{timezoneError}</p>}
           {timezoneNotice && <p className="success-message" role="status">{timezoneNotice}</p>}
           <button className="primary" type="submit" disabled={timezoneBusy || !timezoneDraft.trim() || timezoneDraft.trim() === timezone}>
