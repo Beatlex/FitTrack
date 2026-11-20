@@ -14,3 +14,15 @@ def commit_versioned_change(db: Session, *, detail: str) -> None:
             status_code=409,
             detail=detail,
         ) from exc
+
+
+def flush_versioned_change(db: Session, *, detail: str) -> None:
+    """Flush a version-checked update or return a retryable HTTP 409."""
+    try:
+        db.flush()
+    except StaleDataError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=detail,
+        ) from exc
