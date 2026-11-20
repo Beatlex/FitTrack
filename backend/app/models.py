@@ -9,6 +9,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(40), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    timezone_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
 class Measurement(Base):
     __tablename__ = "body_measurements"
     id: Mapped[int] = mapped_column(primary_key=True)
