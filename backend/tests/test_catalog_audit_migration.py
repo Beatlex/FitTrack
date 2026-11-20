@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, MetaData, Table, create_engine, inspect, text
+from sqlalchemy import Column, DateTime, Integer, MetaData, Table, create_engine, inspect, text
 
 from app.migrate_catalog_audit import upgrade
 
@@ -8,8 +8,8 @@ def test_catalog_audit_migration_adds_versions_and_is_idempotent() -> None:
     metadata = MetaData()
     Table("users", metadata, Column("id", Integer, primary_key=True))
     Table("households", metadata, Column("id", Integer, primary_key=True))
-    foods = Table("foods", metadata, Column("id", Integer, primary_key=True))
-    recipes = Table("meal_templates", metadata, Column("id", Integer, primary_key=True))
+    foods = Table("foods", metadata, Column("id", Integer, primary_key=True), Column("created_at", DateTime))
+    recipes = Table("meal_templates", metadata, Column("id", Integer, primary_key=True), Column("created_at", DateTime))
     metadata.create_all(engine)
 
     with engine.begin() as connection:
@@ -20,12 +20,14 @@ def test_catalog_audit_migration_adds_versions_and_is_idempotent() -> None:
     upgrade(engine)
 
     inspector = inspect(engine)
-    assert "version" in {column["name"] for column in inspector.get_columns("foods")}
-    assert "version" in {column["name"] for column in inspector.get_columns("meal_templates")}
+    assert {"version", "updated_at"} <= {column["name"] for column in inspector.get_columns("foods")}
+    assert {"version", "updated_at"} <= {column["name"] for column in inspector.get_columns("meal_templates")}
     assert "catalog_audit_events" in inspector.get_table_names()
 
     with engine.connect() as connection:
         assert connection.execute(text("SELECT version FROM foods")).scalar_one() == 1
         assert connection.execute(text("SELECT version FROM meal_templates")).scalar_one() == 1
+        assert connection.execute(text("SELECT updated_at FROM foods")).scalar_one() is not None
+        assert connection.execute(text("SELECT updated_at FROM meal_templates")).scalar_one() is not None
 
     engine.dispose()
