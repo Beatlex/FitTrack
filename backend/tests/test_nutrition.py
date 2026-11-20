@@ -461,7 +461,7 @@ def test_catalog_versions_prevent_lost_updates_and_audit_changes(client: TestCli
     assert recipe.json()["version"] == 1
 
     recipe_edit = client.put(f"/api/nutrition/recipes/{recipe.json()['id']}", json={
-        "name": "Audit Recipe Updated", "meal_type": "dinner",
+        "name": "Audit Recipe", "meal_type": "lunch",
         "ingredients": [{"food_id": food.json()["id"], "amount_g": 150}],
         "version": 1,
     })
@@ -474,9 +474,9 @@ def test_catalog_versions_prevent_lost_updates_and_audit_changes(client: TestCli
         "version": 1,
     })
     assert stale_recipe.status_code == 409
-    current_recipe = client.get("/api/nutrition/recipes?q=Audit Recipe Updated")
+    current_recipe = client.get("/api/nutrition/recipes?q=Audit Recipe")
     assert current_recipe.status_code == 200
-    assert current_recipe.json()[0]["name"] == "Audit Recipe Updated"
+    assert current_recipe.json()[0]["name"] == "Audit Recipe"
     assert current_recipe.json()[0]["ingredients"][0]["amount_g"] == 150
     assert current_recipe.json()[0]["version"] == 2
 
