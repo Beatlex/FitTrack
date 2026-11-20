@@ -120,7 +120,7 @@ def create_food(data: FoodCreate, db: Session = Depends(get_db),
     return food_dict(food)
 
 
-@router.put("/foods/{food_id}")
+@router.put("/foods/{food_id:int}")
 def update_food(food_id: int, data: FoodUpdate, db: Session = Depends(get_db),
                 user: User = Depends(current_user)):
     food = db.scalar(visible_foods_statement(user.id, db).where(
@@ -158,7 +158,7 @@ def update_food(food_id: int, data: FoodUpdate, db: Session = Depends(get_db),
     return food_dict(food)
 
 
-@router.delete("/foods/{food_id}", status_code=204)
+@router.delete("/foods/{food_id:int}", status_code=204)
 def archive_food(food_id: int, db: Session = Depends(get_db),
                  user: User = Depends(current_user)):
     food = db.scalar(visible_foods_statement(user.id, db).where(
@@ -211,7 +211,7 @@ def list_hidden_foods(db: Session = Depends(get_db), user: User = Depends(curren
     return [food_dict(food) for food in foods]
 
 
-@router.post("/foods/{food_id}/hide", status_code=204)
+@router.post("/foods/{food_id:int}/hide", status_code=204)
 def hide_food(food_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     food = db.scalar(select(Food).join(
         FoodAccess, FoodAccess.food_id == Food.id
@@ -227,7 +227,7 @@ def hide_food(food_id: int, db: Session = Depends(get_db), user: User = Depends(
     return Response(status_code=204)
 
 
-@router.delete("/foods/{food_id}/hide", status_code=204)
+@router.delete("/foods/{food_id:int}/hide", status_code=204)
 def restore_food(food_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     marker = db.scalar(select(FoodHiddenByUser).where(
         FoodHiddenByUser.food_id == food_id, FoodHiddenByUser.user_id == user.id
@@ -495,7 +495,7 @@ def list_hidden_recipes(db: Session = Depends(get_db), user: User = Depends(curr
     return [recipe_dict(template, db, user.id) for template in templates]
 
 
-@router.post("/recipes/{recipe_id}/hide", status_code=204)
+@router.post("/recipes/{recipe_id:int}/hide", status_code=204)
 def hide_recipe(recipe_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     template = db.scalar(select(MealTemplate).join(
         RecipeAccess, RecipeAccess.recipe_id == MealTemplate.id
@@ -511,7 +511,7 @@ def hide_recipe(recipe_id: int, db: Session = Depends(get_db), user: User = Depe
     return Response(status_code=204)
 
 
-@router.delete("/recipes/{recipe_id}/hide", status_code=204)
+@router.delete("/recipes/{recipe_id:int}/hide", status_code=204)
 def restore_recipe(recipe_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     marker = db.scalar(select(RecipeHiddenByUser).where(
         RecipeHiddenByUser.recipe_id == recipe_id, RecipeHiddenByUser.user_id == user.id
@@ -552,7 +552,7 @@ def create_recipe(data: RecipeCreate, db: Session = Depends(get_db),
     return recipe_dict(template, db, user.id)
 
 
-@router.put("/recipes/{recipe_id}")
+@router.put("/recipes/{recipe_id:int}")
 def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_db),
                   user: User = Depends(current_user)):
     template = db.scalar(visible_recipes_statement(user.id, db).where(
@@ -607,7 +607,7 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
     return recipe_dict(template, db, user.id)
 
 
-@router.patch("/recipes/{recipe_id}/favorite")
+@router.patch("/recipes/{recipe_id:int}/favorite")
 def set_recipe_favorite(recipe_id: int, data: FavoriteUpdate,
                         db: Session = Depends(get_db), user: User = Depends(current_user)):
     template = db.scalar(visible_recipes_statement(user.id, db).where(
@@ -628,7 +628,7 @@ def set_recipe_favorite(recipe_id: int, data: FavoriteUpdate,
     return recipe_dict(template, db, user.id)
 
 
-@router.post("/recipes/{recipe_id}/log", status_code=201)
+@router.post("/recipes/{recipe_id:int}/log", status_code=201)
 def log_recipe(recipe_id: int, db: Session = Depends(get_db),
                user: User = Depends(current_user)):
     template = db.scalar(visible_recipes_statement(user.id, db).where(
@@ -662,7 +662,7 @@ def log_recipe(recipe_id: int, db: Session = Depends(get_db),
     return meal_dict(meal, rows)
 
 
-@router.delete("/recipes/{recipe_id}", status_code=204)
+@router.delete("/recipes/{recipe_id:int}", status_code=204)
 def delete_recipe(recipe_id: int, db: Session = Depends(get_db),
                   user: User = Depends(current_user)):
     template = db.scalar(visible_recipes_statement(user.id, db).where(
