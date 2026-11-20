@@ -25,7 +25,7 @@ def sqlite_path(database_url: str) -> Path:
     raw_path = unquote(parsed.path)
     if raw_path in {"", "/:memory:"} or database_url.endswith(":memory:"):
         raise BackupError("In-Memory-Datenbanken können nicht gesichert werden.")
-    if raw_path.startswith("/") and len(raw_path) > 2 and raw_path[2] == ":":
+    if raw_path.startswith("/") and not raw_path.startswith("//"):
         raw_path = raw_path[1:]
     return Path(raw_path).resolve()
 
