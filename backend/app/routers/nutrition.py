@@ -189,7 +189,9 @@ def archive_food(food_id: int, db: Session = Depends(get_db),
             entity_type="food", entity_id=food.id, entity_name=food.name,
             action="archived", changes={"before": before, "after": after},
         )
-    db.commit()
+    commit_versioned_change(
+        db, detail="Dieses Lebensmittel wurde gleichzeitig geändert. Bitte lade es neu und wiederhole deine Aktion."
+    )
     return Response(status_code=204)
 
 
@@ -565,6 +567,9 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
     validate_recipe_ingredients(data, db, user.id, recipe_id=template.id)
     template.name = data.name
     template.meal_type = data.meal_type
+    flush_versioned_change(
+        db, detail="Dieses Gericht wurde gleichzeitig geändert. Bitte lade es neu und wiederhole deine Änderung."
+    )
     db.execute(delete(MealTemplateIngredient).where(
         MealTemplateIngredient.template_id == template.id
     ))
@@ -572,9 +577,7 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
         db.add(MealTemplateIngredient(
             template_id=template.id, food_id=item.food_id, amount_g=item.amount_g
         ))
-    flush_versioned_change(
-        db, detail="Dieses Gericht wurde gleichzeitig geändert. Bitte lade es neu und wiederhole deine Änderung."
-    )
+    db.flush()
     sync_recipe_ingredient_grants(db, template.id)
     after = {
         "name": template.name,
