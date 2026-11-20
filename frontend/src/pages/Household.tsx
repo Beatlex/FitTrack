@@ -197,14 +197,6 @@ export default function HouseholdPage() {
           </div>}
         </section>}
 
-      {!household && <>
-      <section className="household-future-grid">
-        <article className="panel future-module"><CalendarDays className="future-icon"/><div><b>Wochenplan</b><small>Gemeinsame Planung eurer Gerichte</small><span>In Planung</span></div></article>
-        <article className="panel future-module"><ShoppingBasket className="future-icon"/><div><b>Einkaufsplan</b><small>Zutaten automatisch zusammenfassen</small><span>In Planung</span></div></article>
-      </section>
-      <section className="household-sharing-note"><ShieldCheck size={17}/><p>Gemeinsam: Lebensmittel und Gerichte. Privat: Körperwerte, Tagesziele und protokollierte Mahlzeiten.</p></section>
-      </>}
-
         {isOwner && <CatalogAuditSection events={auditEvents} />}
 
         {isOwner && catalogAccess && (
