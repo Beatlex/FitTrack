@@ -290,6 +290,13 @@ def test_account_deletion_transfers_household_and_preserves_shared_catalog(clien
     remaining_recipes = client.get("/api/nutrition/recipes?q=Shared%20Delete")
     assert remaining_recipes.status_code == 200
     assert len(remaining_recipes.json()) == 1
+    retained_audit = client.get("/api/household/audit")
+    assert retained_audit.status_code == 200
+    assert any(
+        event["entity_name"] == "Shared Delete Food"
+        and event["actor_username"] == "Gelöschtes Konto"
+        for event in retained_audit.json()
+    )
     logged = client.post(f"/api/nutrition/recipes/{recipe.json()['id']}/log")
     assert logged.status_code == 201
     assert logged.json()["calories"] == 90
