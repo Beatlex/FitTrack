@@ -27,7 +27,7 @@ from .timezones import local_day_bounds, local_today, normalize_utc, validated_t
 
 Base.metadata.create_all(bind=engine)
 
-# Additive catalog ACL migration; safe to re-run during application startup.
+# Additive, idempotent bootstrap migrations for existing local SQLite databases.
 migrate_catalog_access()
 migrate_catalog_audit()
 migrate_user_timezone()
