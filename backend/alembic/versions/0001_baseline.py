@@ -3,6 +3,7 @@
 Revision ID: 0001_baseline
 """
 from alembic import op
+import sqlalchemy as sa
 
 revision = "0001_baseline"
 down_revision = None
@@ -29,7 +30,7 @@ def upgrade() -> None:
     # an older SQLite schema is introspected through a cached Inspector.
     user_columns = {row[1] for row in bind.exec_driver_sql("PRAGMA table_info(users)")}
     if "timezone_name" not in user_columns:
-        bind.exec_driver_sql("ALTER TABLE users ADD COLUMN timezone_name VARCHAR(64)")
+        op.add_column("users", sa.Column("timezone_name", sa.String(length=64), nullable=True))
 
 
 def downgrade() -> None:
