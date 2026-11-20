@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
 from app.main import app
 import app.main as main_module
+import app.routers.nutrition as nutrition_router_module
 from app.migrate_user_timezone import upgrade
 from app.timezones import local_day_bounds
 
@@ -148,6 +149,11 @@ def test_nutrition_and_dashboard_share_dst_aware_local_day(client: TestClient, m
     assert daily.json()["date"] == "2026-03-29"
     assert len(daily.json()["entries"]) == 2
     assert daily.json()["consumed"]["calories"] == 200
+
+    monkeypatch.setattr(nutrition_router_module, "local_today", lambda _timezone: date(2026, 3, 29))
+    default_day = client.get("/api/nutrition/day")
+    assert default_day.status_code == 200
+    assert default_day.json()["date"] == "2026-03-29"
 
     monkeypatch.setattr(main_module, "local_today", lambda _timezone: date(2026, 3, 29))
     dashboard = client.get("/api/dashboard")
