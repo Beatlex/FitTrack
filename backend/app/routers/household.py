@@ -1,15 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..audit_service import record_catalog_event
 from ..dependencies import current_user
 from ..household_models import Household, HouseholdInvitation, HouseholdMember
 from ..models import User
 from ..nutrition_models import (
-    Food, FoodAccess, MealTemplate, RecipeAccess,
+    CatalogAuditEvent, Food, FoodAccess, MealTemplate, RecipeAccess,
 )
 from ..catalog_access import (
     grant_owned_catalog_to_household,
@@ -158,6 +159,33 @@ def get_catalog_access(db: Session = Depends(get_db), user: User = Depends(curre
         ],
     }
 
+
+@router.get("/audit")
+def get_household_audit(
+    limit: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    membership = _catalog_access_context(db, user.id)
+    events = db.scalars(
+        select(CatalogAuditEvent)
+        .where(CatalogAuditEvent.household_id == membership.household_id)
+        .order_by(CatalogAuditEvent.created_at.desc(), CatalogAuditEvent.id.desc())
+        .limit(limit)
+    ).all()
+    return [
+        {
+            "id": event.id,
+            "actor_username": event.actor_username,
+            "entity_type": event.entity_type,
+            "entity_id": event.entity_id,
+            "entity_name": event.entity_name,
+            "action": event.action,
+            "changes": event.changes,
+            "created_at": event.created_at.isoformat(),
+        }
+        for event in events
+    ]
 
 @router.put("/catalog-access/foods/{food_id}/members/{target_user_id}", status_code=204)
 def grant_food_access(food_id: int, target_user_id: int,
