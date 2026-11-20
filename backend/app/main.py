@@ -1,5 +1,6 @@
 import logging
 import os
+from contextlib import asynccontextmanager
 from math import isfinite
 from datetime import datetime, timezone
 
@@ -11,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from .database import Base, engine, get_db
+from .database import get_db
 from .dependencies import current_user
 from .concurrency import commit_versioned_change
 from .models import FoodEntry, Measurement, User
@@ -20,17 +21,11 @@ from .nutrition_models import MealEntry
 from . import household_models  # Register household tables before create_all
 from .schemas import MeasurementCreate, MeasurementUpdate
 from .account_service import delete_account as delete_account_data
-from .migrate_catalog_access import upgrade as migrate_catalog_access
-from .migrate_catalog_audit import upgrade as migrate_catalog_audit
-from .migrate_user_timezone import upgrade as migrate_user_timezone
+from .migration_runner import run_database_migrations
+from .backup_scheduler import start_backup_scheduler, stop_backup_scheduler
 from .timezones import list_available_timezones, local_day_bounds, local_today, normalize_utc, validated_timezone
 
-Base.metadata.create_all(bind=engine)
-
-# Additive, idempotent bootstrap migrations for existing local SQLite databases.
-migrate_catalog_access()
-migrate_catalog_audit()
-migrate_user_timezone()
+run_database_migrations()
 password_hasher = PasswordHash.recommended()
 
 is_production = os.getenv("APP_ENV", "development").lower() == "production"
@@ -55,7 +50,16 @@ class AccountDeletionRequest(BaseModel):
     confirmation: str = Field(min_length=3, max_length=40)
 
 
-app = FastAPI(title="FitTrack API", version="0.2.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    start_backup_scheduler()
+    try:
+        yield
+    finally:
+        stop_backup_scheduler()
+
+
+app = FastAPI(title="FitTrack API", version="0.2.0", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=session_secret,
