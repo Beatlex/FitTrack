@@ -16,6 +16,13 @@ def validated_timezone(name: str | None) -> ZoneInfo:
         raise ValueError("Unbekannte IANA-Zeitzone.") from None
 
 
+def normalize_utc(value: datetime) -> datetime:
+    """Interpret naive legacy inputs as UTC and convert aware inputs to UTC."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def local_today(timezone_name: str | None) -> date:
     return datetime.now(validated_timezone(timezone_name or DEFAULT_TIMEZONE)).date()
 
