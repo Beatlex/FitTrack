@@ -253,3 +253,8 @@
 .account-timezone-form small{font-size:10px;color:#929bad}
 .account-timezone-form .primary{justify-self:start;margin-top:5px}
 @media(max-width:600px){.account-timezone-panel{padding:16px}.account-timezone-form .primary{width:100%}}
+
+.account-timezone-form select{width:100%;min-width:0;padding:11px 38px 11px 12px;background:#111620;border:1px solid #454052;color:#f2f3f7;border-radius:9px;appearance:auto;outline:none}
+.account-timezone-form select:focus{border-color:#9279f4;box-shadow:0 0 0 2px #9279f426}
+.account-timezone-form select option,.account-timezone-form select optgroup{background:#191e29;color:#f2f3f7}
+.account-timezone-form .primary:disabled{opacity:.45;cursor:not-allowed}
