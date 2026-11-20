@@ -7,7 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from pwdlib import PasswordHash
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -16,6 +16,7 @@ from .dependencies import current_user
 from .concurrency import commit_versioned_change
 from .models import FoodEntry, Measurement, User
 from . import nutrition_models  # Register nutrition tables before create_all
+from .nutrition_models import MealEntry
 from . import household_models  # Register household tables before create_all
 from .schemas import MeasurementCreate, MeasurementUpdate
 from .account_service import delete_account as delete_account_data
@@ -294,10 +295,10 @@ def dashboard(db: Session = Depends(get_db), user: User = Depends(current_user))
     today = local_today(user.timezone_name)
     start, end = local_day_bounds(today, user.timezone_name)
     entries = db.scalars(
-        select(FoodEntry).where(
-            FoodEntry.user_id == user.id,
-            FoodEntry.consumed_at >= start,
-            FoodEntry.consumed_at < end,
+        select(MealEntry).where(
+            MealEntry.user_id == user.id,
+            MealEntry.consumed_at >= start,
+            MealEntry.consumed_at < end,
         )
     ).all()
     latest = db.scalar(
