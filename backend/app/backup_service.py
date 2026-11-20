@@ -177,7 +177,7 @@ def ensure_scheduled_backups(database_url: str, backup_dir: Path, schema_revisio
     created: list[Path] = []
     if not any(path.name.startswith(f"fittrack-daily-{day}") for path in existing):
         created.append(create_backup(database_url, backup_dir, kind="daily", schema_revision=schema_revision, now=now))
-    if not any(path.name.startswith(f"fittrack-weekly-{week}") for path in existing):
+    if not any(path.name.startswith(f"fittrack-weekly-{week}-") for path in existing):
         created.append(create_backup(database_url, backup_dir, kind="weekly", schema_revision=schema_revision, now=now))
     prune_scheduled_backups(backup_dir)
     return created
