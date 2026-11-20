@@ -127,6 +127,8 @@ def test_nutrition_and_dashboard_share_dst_aware_local_day(client: TestClient, m
     # 2026-03-29 22:00Z): exactly 23 hours across the spring DST transition.
     timestamps = [
         ("2026-03-28T22:30:00+00:00", False),
+        # Same instant is previous local day; offsets must be normalized to UTC.
+        ("2026-03-28T23:30:00+02:00", False),
         ("2026-03-28T23:30:00+00:00", True),
         ("2026-03-29T21:30:00+00:00", True),
         ("2026-03-29T22:30:00+00:00", False),
