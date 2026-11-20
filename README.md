@@ -15,10 +15,7 @@ Vor einer Migration den laufenden Backend-Server stoppen und `data/fittrack.db` 
 cd backend
 py -3.14 -m venv .venv
 .venv\Scripts\activate.bat
-python -m pip install -r requirements.txt
-python -c "from app.main import app"  # erstellt das Grundschema
-python -m app.migrate_nutrition
-python -m app.migrate_household
+python -m pip install -r requirements-dev.txt
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 Kopiere den ausgegebenen Schlüssel und setze ihn in demselben Terminal:
@@ -32,10 +29,7 @@ python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 cd backend
 py -3.14 -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python -c "from app.main import app"  # erstellt das Grundschema
-python -m app.migrate_nutrition
-python -m app.migrate_household
+python -m pip install -r requirements-dev.txt
 $env:SESSION_SECRET = (python -c "import secrets; print(secrets.token_urlsafe(48))")
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
@@ -48,7 +42,7 @@ npm run dev
 ```
 Öffne http://localhost:5173. Die API-Dokumentation findest du unter http://127.0.0.1:8000/docs. Der Vite-Entwicklungsserver bindet standardmäßig nur an localhost. Für einen vorübergehenden Test in einem vertrauenswürdigen Heimnetz kannst du ihn mit `npm run dev -- --host 0.0.0.0` freigeben; wegen bekannter Schwachstellen in einem transitiven Entwicklungswerkzeug (picomatch) nicht in öffentlichen oder nicht vertrauenswürdigen Netzen verwenden.
 
-Es können beliebig viele Benutzerkonten angelegt werden. Jeder Benutzer kann genau einem Haushalt angehören oder zunächst ohne Haushalt bleiben. Die SQLite-Datei wird lokal unter `data/fittrack.db` erzeugt und ist absichtlich von Git ausgeschlossen.
+Es können beliebig viele Benutzerkonten angelegt werden. Jeder Benutzer kann genau einem Haushalt angehören oder zunächst ohne Haushalt bleiben. Die SQLite-Datei wird lokal unter `data/fittrack.db` erzeugt und ist absichtlich von Git ausgeschlossen. Alembic-Migrationen und verifizierte Backups werden beim Backend-Start verwaltet; Details stehen in [docs/database-operations.md](docs/database-operations.md).
 
 ## Linux (späterer Betrieb)
 Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debian/Ubuntu werden die virtuelle Umgebung mit `python3 -m venv .venv`, die Abhängigkeiten mit `pip install -r requirements.txt` und das Frontend mit `npm install` installiert. Für den Produktivbetrieb sind ein starker `SESSION_SECRET`, `APP_ENV=production`, `COOKIE_SECURE=true`, HTTPS über einen Reverse-Proxy, ein nicht privilegierter Systembenutzer und regelmäßige Backups erforderlich.
@@ -79,7 +73,7 @@ Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debi
 - Persönliche Rezeptfavoriten sowie individuelle Tagesziele und private Mahlzeitenprotokolle
 
 ## Geplante Ausbaustufen
-Alembic als versioniertes Migrationssystem, manuelle Eigentümerübergabe, vollständige Ernährungshistorie mit Bearbeiten/Löschen, externe Lebensmitteldatenbank, Statistiken, Wochenplan, Einkaufsplan und automatische Backups.
+Manuelle Eigentümerübergabe, vollständige Ernährungshistorie mit Bearbeiten/Löschen, externe Lebensmitteldatenbank, Statistiken, Wochenplan und Einkaufsplan.
 
 - Beim Erstellen eines Haushalts werden bereits vorhandene eigene Lebensmittel und Gerichte des Erstellers in den Haushalt übernommen. Bei Annahme einer Einladung werden auch die bisherigen eigenen Katalogeinträge des beitretenden Benutzers geteilt. Beim Verlassen oder Entfernen werden eigene Einträge wieder privat; Lebensmittel, die von Rezepten verbleibender Mitglieder benötigt werden, bleiben für den Haushalt verfügbar.
 - Die Dashboard-Übersicht zeigt die letzten 30 Gewichtsmessungen aus dem persönlichen Körperwerte-Verlauf.
