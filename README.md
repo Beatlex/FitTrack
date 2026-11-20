@@ -10,7 +10,7 @@ Privates Fitness- und Ernährungstracking mit Haushaltsverwaltung. Mitglieder ei
 ## Windows-Entwicklung
 
 ### Backend – Eingabeaufforderung (CMD)
-Vor einer Migration den laufenden Backend-Server stoppen und `data/fittrack.db` sichern. Die Migrationen werden einmalig nach einem Update in der angegebenen Reihenfolge ausgeführt.
+Beim Backend-Start werden ausstehende Alembic-Migrationen automatisch und mit einem geprüften Vorab-Backup ausgeführt.
 ```cmd
 cd backend
 py -3.14 -m venv .venv
@@ -42,10 +42,10 @@ npm run dev
 ```
 Öffne http://localhost:5173. Die API-Dokumentation findest du unter http://127.0.0.1:8000/docs. Der Vite-Entwicklungsserver bindet standardmäßig nur an localhost. Für einen vorübergehenden Test in einem vertrauenswürdigen Heimnetz kannst du ihn mit `npm run dev -- --host 0.0.0.0` freigeben; wegen bekannter Schwachstellen in einem transitiven Entwicklungswerkzeug (picomatch) nicht in öffentlichen oder nicht vertrauenswürdigen Netzen verwenden.
 
-Es können beliebig viele Benutzerkonten angelegt werden. Jeder Benutzer kann genau einem Haushalt angehören oder zunächst ohne Haushalt bleiben. Die SQLite-Datei wird lokal unter `data/fittrack.db` erzeugt und ist absichtlich von Git ausgeschlossen. Alembic-Migrationen und verifizierte Backups werden beim Backend-Start verwaltet; Details stehen in [docs/database-operations.md](docs/database-operations.md). Alembic-Migrationen und verifizierte Backups werden beim Backend-Start verwaltet; Details stehen in [docs/database-operations.md](docs/database-operations.md).
+Es können beliebig viele Benutzerkonten angelegt werden. Jeder Benutzer kann genau einem Haushalt angehören oder zunächst ohne Haushalt bleiben. Die SQLite-Datei wird lokal unter `data/fittrack.db` erzeugt und ist absichtlich von Git ausgeschlossen. Alembic-Migrationen und verifizierte Backups werden beim Backend-Start verwaltet; Details stehen in [docs/database-operations.md](docs/database-operations.md).
 
 ## Linux (späterer Betrieb)
-Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debian/Ubuntu werden die virtuelle Umgebung mit `python3 -m venv .venv`, die Abhängigkeiten mit `pip install -r requirements.txt` und das Frontend mit `npm install` installiert. Für den Produktivbetrieb sind ein starker `SESSION_SECRET`, `APP_ENV=production`, `COOKIE_SECURE=true`, HTTPS über einen Reverse-Proxy, ein nicht privilegierter Systembenutzer und regelmäßige Backups erforderlich.
+Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debian/Ubuntu werden die virtuelle Umgebung mit `python3 -m venv .venv`, die Abhängigkeiten mit `pip install -r requirements-dev.txt` und das Frontend mit `npm ci` installiert. Für den Produktivbetrieb sind ein starker `SESSION_SECRET`, `APP_ENV=production`, `COOKIE_SECURE=true`, HTTPS über einen Reverse-Proxy, ein nicht privilegierter Systembenutzer und regelmäßige Backups erforderlich.
 
 ## Sicherheit und Datenmodell
 - Die API leitet die Benutzer-ID ausschließlich aus der serverseitigen Session ab. Eine vom Browser gelieferte Benutzer-ID wird nicht akzeptiert.
