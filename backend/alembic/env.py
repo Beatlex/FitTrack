@@ -38,10 +38,12 @@ def run_migrations_online() -> None:
         connect_args={"check_same_thread": False},
     )
     try:
-        with connectable.connect() as connection:
-            current = MigrationContext.configure(connection).get_current_revision()
+        # Keep backup preflight on its own connection. Its metadata reads must
+        # not leave an implicit SQLite transaction open for Alembic's DDL.
+        with connectable.connect() as preflight:
+            current = MigrationContext.configure(preflight).get_current_revision()
             head = ScriptDirectory.from_config(config).get_current_head()
-            has_user_tables = connection.exec_driver_sql(
+            has_user_tables = preflight.exec_driver_sql(
                 "SELECT 1 FROM sqlite_master WHERE type='table' "
                 "AND name NOT LIKE 'sqlite_%' LIMIT 1"
             ).first() is not None
@@ -57,6 +59,7 @@ def run_migrations_online() -> None:
                     schema_revision=current,
                 )
 
+        with connectable.connect() as connection:
             context.configure(
                 connection=connection,
                 target_metadata=target_metadata,
