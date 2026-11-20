@@ -12,8 +12,13 @@ def validated_timezone(name: str | None) -> ZoneInfo:
         raise ValueError("Bitte eine gültige IANA-Zeitzone angeben.")
     try:
         return ZoneInfo(name)
-    except (ZoneInfoNotFoundError, ValueError):
-        raise ValueError("Unbekannte IANA-Zeitzone.") from None
+    except ZoneInfoNotFoundError:
+        raise ValueError(
+            "Diese Zeitzone ist auf dem Server nicht verfügbar. "
+            "Bitte die Backend-Abhängigkeiten einschließlich tzdata installieren."
+        ) from None
+    except ValueError:
+        raise ValueError("Bitte eine gültige IANA-Zeitzone angeben.") from None
 
 
 def normalize_utc(value: datetime) -> datetime:
