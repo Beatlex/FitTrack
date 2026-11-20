@@ -101,13 +101,14 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
     };
     await runAction(async () => {
       if (editingFoodId !== null) {
+        if (editingFoodVersion === null) throw new Error("Die Bearbeitungsversion fehlt. Bitte öffne den Eintrag erneut.");
         await api(`/api/nutrition/foods/${editingFoodId}`, { method: "PUT", body: JSON.stringify({ ...payload, version: editingFoodVersion }) });
       } else {
         const matches = await api<Food[]>(`/api/nutrition/foods?q=${encodeURIComponent(payload.name)}`);
         const existing = matches.find(item => item.name.trim().toLocaleLowerCase() === payload.name.toLocaleLowerCase());
         if (existing?.is_system) throw new Error("Dieses Lebensmittel ist ein geschützter Systemeintrag.");
         if (existing && !window.confirm(`„${existing.name}“ ist bereits vorhanden. Soll dieser Eintrag aktualisiert werden?`)) return false;
-        if (existing) await api(`/api/nutrition/foods/${existing.id}`, { method: "PUT", body: JSON.stringify(payload) });
+        if (existing) await api(`/api/nutrition/foods/${existing.id}`, { method: "PUT", body: JSON.stringify({ ...payload, version: existing.version }) });
         else await api("/api/nutrition/foods", { method: "POST", body: JSON.stringify(payload) });
       }
       setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" });
