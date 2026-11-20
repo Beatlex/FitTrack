@@ -41,6 +41,7 @@ def food_dict(food: Food) -> dict:
     return {
         "id": food.id, "name": food.name, "brand": food.brand,
         "basis_g": food.basis_g, "is_system": food.is_system, "version": food.version,
+        "updated_at": food.updated_at.isoformat(),
         **{key: getattr(food, key) for key in MACROS},
     }
 
@@ -143,6 +144,8 @@ def update_food(food_id: int, data: FoodUpdate, db: Session = Depends(get_db),
     for key in MACROS:
         setattr(food, key, getattr(data, key))
     after = food_audit_state(food)
+    if before == after:
+        return food_dict(food)
     record_catalog_event(
         db, actor=user, household_id=food.household_id,
         entity_type="food", entity_id=food.id, entity_name=food.name,
@@ -382,7 +385,8 @@ def recipe_dict(template: MealTemplate, db: Session, user_id: int) -> dict:
     )) is not None
     return {
         "id": template.id, "name": template.name, "meal_type": template.meal_type,
-        "version": template.version, "is_favorite": is_favorite, "ingredients": ingredients,
+        "version": template.version, "updated_at": template.updated_at.isoformat(),
+        "is_favorite": is_favorite, "ingredients": ingredients,
         "amount_g": round(sum(item["amount_g"] for item in ingredients), 2),
         **{key: round(value, 2) for key, value in totals.items()},
     }
@@ -439,7 +443,8 @@ def list_recipes(q: str = Query(default="", max_length=100), favorites_only: boo
             })
         result.append({
             "id": template.id, "name": template.name, "meal_type": template.meal_type,
-            "version": template.version, "is_favorite": template.id in favorite_ids, "ingredients": ingredients,
+            "version": template.version, "updated_at": template.updated_at.isoformat(),
+            "is_favorite": template.id in favorite_ids, "ingredients": ingredients,
             "amount_g": round(sum(item["amount_g"] for item in ingredients), 2),
             **{key: round(value, 2) for key, value in totals.items()},
         })
@@ -558,6 +563,16 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
     if data.version != template.version:
         raise HTTPException(409, "Dieses Gericht wurde zwischenzeitlich geändert. Bitte lade den Eintrag neu.")
     before = recipe_audit_state(template, db)
+    after = {
+        "name": data.name,
+        "meal_type": data.meal_type,
+        "ingredients": [
+            {"food_id": item.food_id, "amount_g": item.amount_g}
+            for item in data.ingredients
+        ],
+    }
+    if before == after:
+        return recipe_dict(template, db, user.id)
     duplicate = db.scalar(visible_recipes_statement(user.id, db).where(
         func.lower(MealTemplate.name) == data.name.casefold(),
         MealTemplate.id != recipe_id,
@@ -567,6 +582,7 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
     validate_recipe_ingredients(data, db, user.id, recipe_id=template.id)
     template.name = data.name
     template.meal_type = data.meal_type
+    template.updated_at = datetime.now(timezone.utc)
     flush_versioned_change(
         db, detail="Dieses Gericht wurde gleichzeitig geändert. Bitte lade es neu und wiederhole deine Änderung."
     )
@@ -579,14 +595,6 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
         ))
     db.flush()
     sync_recipe_ingredient_grants(db, template.id)
-    after = {
-        "name": template.name,
-        "meal_type": template.meal_type,
-        "ingredients": [
-            {"food_id": item.food_id, "amount_g": item.amount_g}
-            for item in data.ingredients
-        ],
-    }
     record_catalog_event(
         db, actor=user, household_id=template.household_id,
         entity_type="recipe", entity_id=template.id, entity_name=template.name,
