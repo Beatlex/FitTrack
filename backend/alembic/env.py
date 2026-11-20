@@ -1,9 +1,15 @@
 from logging.config import fileConfig
 
+import os
+from pathlib import Path
+
 from alembic import context
+from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import engine_from_config, pool
 
-from app.database import Base
+from app.backup_service import create_backup
+from app.database import Base, DATA
 from app import models, nutrition_models, household_models  # noqa: F401
 
 config = context.config
@@ -33,6 +39,24 @@ def run_migrations_online() -> None:
     )
     try:
         with connectable.connect() as connection:
+            current = MigrationContext.configure(connection).get_current_revision()
+            head = ScriptDirectory.from_config(config).get_current_head()
+            has_user_tables = connection.exec_driver_sql(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%' LIMIT 1"
+            ).first() is not None
+            if has_user_tables and current != head:
+                database_url = config.get_main_option("sqlalchemy.url")
+                backup_dir = Path(
+                    os.environ.get("FITTRACK_BACKUP_DIR", str(DATA / "backups"))
+                ).resolve()
+                create_backup(
+                    database_url,
+                    backup_dir,
+                    kind="pre-migration",
+                    schema_revision=current,
+                )
+
             context.configure(
                 connection=connection,
                 target_metadata=target_metadata,
