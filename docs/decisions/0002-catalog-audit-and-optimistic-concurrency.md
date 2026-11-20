@@ -21,7 +21,9 @@ Foods and recipes are shared master data. Multiple household members may edit th
 ### Optimistic concurrency
 
 - Add a monotonically increasing version column to foods and recipes.
-- SQLAlchemy mapper versioning adds the current version to ORM UPDATE/DELETE predicates and increments it after a successful write.
+- SQLAlchemy mapper versioning adds the current version to ORM UPDATE/DELETE predicates and increments it after a successful write. Foods and recipes also maintain an updated_at timestamp.
+- Recipe ingredient rows are separate from the recipe parent row. Ingredient-only edits explicitly update the parent updated_at value so the recipe version is incremented and concurrent ingredient replacements cannot silently overwrite one another.
+- No-op edits are detected and do not create misleading audit events or increment versions.
 - Edit requests carry the version last read by the client. A version mismatch returns HTTP 409 with an instruction to reload; no silent overwrite or automatic merge occurs.
 - Recipe metadata and ingredient replacement are one transaction. The version check is flushed before replacing ingredient rows, and any later failure rolls back both the version change and ingredient changes.
 - Historical meal nutrient snapshots remain immutable.
