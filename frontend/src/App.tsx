@@ -18,7 +18,7 @@ import Nutrition from "./pages/Nutrition";
 import HouseholdPage from "./pages/Household";
 import AccountSettings from "./pages/AccountSettings";
 
-type User = { id: number; username: string };
+type User = { id: number; username: string; timezone_name?: string | null };
 type WeightPoint = { id: number; measured_at: string; weight_kg: number | null };
 type DashboardData = {
   username: string;
@@ -51,11 +51,9 @@ export default function App() {
   const [notice, setNotice] = useState("");
 
   async function refreshDashboard() {
-    const day = new Date();
-    const localDate = new Date(day.getTime() - day.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     const [data, nutrition, measurements] = await Promise.all([
       api<DashboardData>("/api/dashboard"),
-      api<NutritionOverview>(`/api/nutrition/day?day=${localDate}`),
+      api<NutritionOverview>("/api/nutrition/day"),
       api<WeightPoint[]>("/api/measurements"),
     ]);
     setDashboard(data);
@@ -63,8 +61,25 @@ export default function App() {
     setWeightHistory(measurements.filter((item) => item.weight_kg != null).slice(0, 30).reverse());
   }
 
+  async function initializeTimezone(authenticatedUser: User): Promise<User> {
+    if (authenticatedUser.timezone_name) return authenticatedUser;
+    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!detected) return authenticatedUser;
+    try {
+      await api("/api/auth/timezone", {
+        method: "PATCH",
+        body: JSON.stringify({ timezone_name: detected }),
+      });
+      return { ...authenticatedUser, timezone_name: detected };
+    } catch (err) {
+      setError(err instanceof Error ? `Zeitzone konnte nicht automatisch gespeichert werden: ${err.message}` : "Zeitzone konnte nicht automatisch gespeichert werden.");
+      return authenticatedUser;
+    }
+  }
+
   useEffect(() => {
     api<User>("/api/auth/me")
+      .then(initializeTimezone)
       .then(setUser)
       .catch(() => setUser(null));
   }, []);
@@ -94,7 +109,7 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({ username, password }),
       });
-      setUser(authenticatedUser);
+      setUser(await initializeTimezone(authenticatedUser));
       setPassword("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Anmeldung fehlgeschlagen.");
@@ -200,7 +215,7 @@ export default function App() {
         {error && <p className="error" role="alert">{error}</p>}
         {notice && <p className="success-message" role="status">{notice}</p>}
 
-        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Ernährung" ? <Nutrition onDataChanged={refreshDashboard} /> : section === "Haushalt" ? <HouseholdPage /> : section === "Konto" ? <AccountSettings username={user.username} onDeleted={handleAccountDeleted} /> : section === "Übersicht" ? (
+        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Ernährung" ? <Nutrition onDataChanged={refreshDashboard} /> : section === "Haushalt" ? <HouseholdPage /> : section === "Konto" ? <AccountSettings username={user.username} timezone={user.timezone_name ?? "UTC"} onTimezoneChanged={(timezone_name) => setUser(current => current ? { ...current, timezone_name } : current)} onDeleted={handleAccountDeleted} /> : section === "Übersicht" ? (
           <>
             <section className="welcome">
               <div><small>SCHÖN, DASS DU DA BIST</small><h2>Bleib dran, {user.username}.</h2><p>Kleine Schritte. Sichtbare Fortschritte.</p></div>
