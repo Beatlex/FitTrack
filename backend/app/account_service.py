@@ -6,6 +6,7 @@ from .household_models import Household, HouseholdInvitation, HouseholdMember
 from .models import FoodEntry, Measurement, User
 from .nutrition_models import (
     Food,
+    CatalogAuditEvent,
     FoodAccess,
     FoodHiddenByUser,
     MealEntry,
@@ -138,6 +139,12 @@ def delete_account(db: Session, user: User) -> None:
                 food.is_active = False
         else:
             db.delete(food)
+
+    # Keep the audit trail while removing the deleted account's username.
+    # The actor FK is also nulled explicitly for SQLite compatibility.
+    db.execute(update(CatalogAuditEvent).where(
+        CatalogAuditEvent.actor_user_id == user.id
+    ).values(actor_user_id=None, actor_username="Gelöschtes Konto"))
 
     # Remove all account-scoped grants, hidden markers, invitations and
     # membership rows only after shared records have been classified.

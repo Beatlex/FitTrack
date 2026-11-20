@@ -10,7 +10,6 @@ import {
   Plus,
   Scale,
   Settings,
-  Utensils,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { api } from "./services/api";

@@ -225,22 +225,6 @@
 @media(max-width:600px){.dashboard-weight-trend{padding:16px;margin:-8px 0 24px}.dashboard-weight-chart svg{min-height:100px}}
 
 
-/* Granular household catalog permissions */
-.catalog-access-panel{display:grid;gap:18px}
-.catalog-access-group{display:grid;gap:10px}
-.catalog-access-group>h3{font-size:13px;color:#c9c0ef;margin:0}
-.catalog-access-group>.muted{font-size:12px;color:#929bad;margin:0}
-.catalog-access-item{display:grid;gap:12px;padding:14px;background:#151a24;border:1px solid #303747;border-radius:11px}
-.catalog-access-heading{display:grid;gap:4px;min-width:0}
-.catalog-access-heading b{font-size:13px;color:#f1f2f6;overflow-wrap:anywhere}
-.catalog-access-heading small{font-size:10px;color:#929bad}
-.catalog-access-members{display:flex;gap:8px;flex-wrap:wrap}
-.catalog-access-toggle{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;background:#1d2431;border:1px solid #343d50;border-radius:8px;color:#c5ccda;font-size:11px}
-.catalog-access-toggle input{accent-color:#a48aff;width:15px;height:15px;margin:0}
-.catalog-access-toggle:has(input:disabled){opacity:.65}
-@media(max-width:600px){.catalog-access-item{padding:12px}.catalog-access-members{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-access-toggle{min-width:0}}
-
-
 /* Account settings and irreversible account deletion */
 .account-settings-page{display:grid;gap:18px;max-width:780px}
 .account-profile-panel,.account-danger-panel{padding:22px}

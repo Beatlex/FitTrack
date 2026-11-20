@@ -42,8 +42,9 @@ The current catalog uses `household_id` as the visibility boundary. This is suff
 5. **Complete:** Frontend controls for personal food/recipe hide and restore.
 6. **Complete:** Household-admin permission matrix for granting/revoking individual food and recipe access. Recipe grants include only contextual ingredient-resolution grants; they do not expose ingredients in the general food picker.
 7. **Complete:** Frontend account-deletion flow with current-password verification, exact username confirmation, and a final irreversible-action confirmation.
-8. **Remaining:** Audit metadata and simultaneous-edit conflict handling.
-9. **Follow-up:** Timezone standardization and database backup/migration operations.
+8. **Complete:** Append-only audit events for catalog creation, edits, archival/deletion, and actual per-member permission transitions. Household audit history is admin-only; deleted actors are anonymized.
+9. **Complete:** Optimistic version checks for concurrent food/recipe edits. Stale writes return HTTP 409 and cannot overwrite a newer version.
+10. **Follow-up:** Timezone standardization and the Alembic/database backup operations plan.
 
 ## Security and integrity requirements
 

@@ -13,17 +13,20 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .database import Base, engine, get_db
 from .dependencies import current_user
+from .concurrency import commit_versioned_change
 from .models import FoodEntry, Measurement, User
 from . import nutrition_models  # Register nutrition tables before create_all
 from . import household_models  # Register household tables before create_all
 from .schemas import MeasurementCreate, MeasurementUpdate
 from .account_service import delete_account as delete_account_data
 from .migrate_catalog_access import upgrade as migrate_catalog_access
+from .migrate_catalog_audit import upgrade as migrate_catalog_audit
 
 Base.metadata.create_all(bind=engine)
 
 # Additive catalog ACL migration; safe to re-run during application startup.
 migrate_catalog_access()
+migrate_catalog_audit()
 password_hasher = PasswordHash.recommended()
 
 is_production = os.getenv("APP_ENV", "development").lower() == "production"
@@ -141,7 +144,9 @@ def delete_own_account(
         raise HTTPException(400, "Bitte bestätige die Kontolöschung mit deinem Benutzernamen.")
 
     delete_account_data(db, user)
-    db.commit()
+    commit_versioned_change(
+        db, detail="Gemeinsame Katalogdaten wurden gleichzeitig geändert. Bitte lade die Seite neu und wiederhole die Kontolöschung."
+    )
     request.session.clear()
     return Response(status_code=204)
 

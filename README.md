@@ -60,6 +60,8 @@ Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debi
 - Der lokale Entwicklungsschlüssel ist ausschließlich für lokale Tests gedacht. Produktionsstarts ohne einen mindestens 32 Zeichen langen `SESSION_SECRET` und ohne `COOKIE_SECURE=true` werden abgebrochen.
 - Haushaltsmitgliedschaften und Einladungen werden serverseitig geprüft. Lebensmittel und Gerichte werden über normalisierte, benutzerspezifische Freigaben (FoodAccess/RecipeAccess) sichtbar gemacht; Einladungen werden erst nach ausdrücklicher Annahme wirksam.
 - Rezeptfreigaben erlauben die Auflösung der benötigten Zutaten innerhalb des Rezepts, ohne diese automatisch im allgemeinen Lebensmittelfinder freizugeben. Persönliches Ausblenden ist getrennt von der Freigabe.
+- Änderungen an gemeinsamen Lebensmitteln und Gerichten sowie an Einzelberechtigungen werden in einem append-only Audit-Verlauf protokolliert. Haushalts-Admins können die letzten 50 Ereignisse einsehen; beim Löschen eines Kontos wird der Akteur im Audit-Verlauf anonymisiert.
+- Lebensmittel und Gerichte besitzen optimistische Versionsnummern. Veraltete Bearbeitungsstände werden mit HTTP 409 abgewiesen, statt neuere Änderungen still zu überschreiben.
 - Der Ersteller bleibt dauerhaft Admin. Er kann offene Einladungen zurückziehen und Mitglieder entfernen. Mitglieder können den Haushalt verlassen; der Admin kann den Haushalt auflösen, sobald er alleiniger Teilnehmer ist. Bei der Auflösung bleiben Lebensmittel und Gerichte als private Einträge ihrer Ersteller erhalten.
 - Der Household-Migrationsschritt legt das Schema an, erstellt aber keinen Haushalt automatisch. Bestehende Benutzer bleiben unabhängig, bis sie selbst einen Haushalt erstellen oder eine Einladung annehmen. Migrationen vor dem ersten App-Start ausführen (siehe Befehle oben).
 - Tagesziele, Körpermessungen und protokollierte Mahlzeiten bleiben strikt benutzerbezogen. Nährwert-Snapshots bereits protokollierter Mahlzeiten werden durch spätere Änderungen am Lebensmittel oder Rezept nicht verändert.
@@ -73,6 +75,7 @@ Die Anwendung verwendet plattformunabhängige Python-/Node-Werkzeuge. Unter Debi
 - Gemeinsame Rezeptbibliothek mit Zutaten, Mengen, Bearbeiten und Löschen
 - Haushalts-Tab mit selbstständiger Erstellung, Mitgliederübersicht, Einladungen per bestehendem Benutzernamen, Annahme/Ablehnung, Entfernen/Verlassen und gezielten Einzelberechtigungen pro Lebensmittel/Gericht und Mitglied
 - Kontolöschung mit Passwort-/Benutzernamenbestätigung, persönlicher Datenbereinigung und Erhalt gemeinsam genutzter Katalogdaten
+- Admin-Audit-Verlauf für Katalogänderungen und Berechtigungswechsel sowie Konfliktschutz bei parallelen Bearbeitungen
 - Persönliche Rezeptfavoriten sowie individuelle Tagesziele und private Mahlzeitenprotokolle
 
 ## Geplante Ausbaustufen

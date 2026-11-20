@@ -3,11 +3,11 @@ import { ArrowLeft, Eye, EyeOff, Heart, Pencil, Plus, Save, Search, Trash2, Uten
 import { api } from "../services/api";
 
 type Values = { calories: number; protein_g: number; carbs_g: number; fat_g: number };
-type Food = Values & { id: number; name: string; basis_g: number; brand: string | null; is_system: boolean };
+type Food = Values & { id: number; name: string; basis_g: number; brand: string | null; is_system: boolean; version: number };
 type Ingredient = Values & { id?: number; food_id: number; food_name: string; amount_g: number; is_active?: boolean };
 type Entry = Values & { id: number; food_name: string; amount_g: number; meal_type: string; ingredients: Ingredient[] };
 type Daily = { goals: Values | null; consumed: Values; remaining: Values | null; entries: Entry[] };
-type Recipe = Values & { id: number; name: string; meal_type: string; is_favorite: boolean; amount_g: number; ingredients: Ingredient[] };
+type Recipe = Values & { id: number; name: string; meal_type: string; is_favorite: boolean; amount_g: number; ingredients: Ingredient[]; version: number };
 type IngredientDraft = { foodId: string; amount: string };
 type View = "today" | "recipes" | "foods";
 const keys: { key: keyof Values; label: string; unit: string }[] = [
@@ -50,6 +50,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
   const [foodName, setFoodName] = useState("");
   const [foodEditorOpen, setFoodEditorOpen] = useState(false);
   const [editingFoodId, setEditingFoodId] = useState<number | null>(null);
+  const [editingFoodVersion, setEditingFoodVersion] = useState<number | null>(null);
   const [foodValues, setFoodValues] = useState({ calories: "", protein_g: "", carbs_g: "", fat_g: "" });
   const [recipeName, setRecipeName] = useState("");
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
@@ -100,22 +101,23 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
     };
     await runAction(async () => {
       if (editingFoodId !== null) {
-        await api(`/api/nutrition/foods/${editingFoodId}`, { method: "PUT", body: JSON.stringify(payload) });
+        if (editingFoodVersion === null) throw new Error("Die Bearbeitungsversion fehlt. Bitte öffne den Eintrag erneut.");
+        await api(`/api/nutrition/foods/${editingFoodId}`, { method: "PUT", body: JSON.stringify({ ...payload, version: editingFoodVersion }) });
       } else {
         const matches = await api<Food[]>(`/api/nutrition/foods?q=${encodeURIComponent(payload.name)}`);
         const existing = matches.find(item => item.name.trim().toLocaleLowerCase() === payload.name.toLocaleLowerCase());
         if (existing?.is_system) throw new Error("Dieses Lebensmittel ist ein geschützter Systemeintrag.");
         if (existing && !window.confirm(`„${existing.name}“ ist bereits vorhanden. Soll dieser Eintrag aktualisiert werden?`)) return false;
-        if (existing) await api(`/api/nutrition/foods/${existing.id}`, { method: "PUT", body: JSON.stringify(payload) });
+        if (existing) await api(`/api/nutrition/foods/${existing.id}`, { method: "PUT", body: JSON.stringify({ ...payload, version: existing.version }) });
         else await api("/api/nutrition/foods", { method: "POST", body: JSON.stringify(payload) });
       }
       setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" });
-      setEditingFoodId(null); setFoodQuery(""); setFoodEditorOpen(false);
+      setEditingFoodId(null); setEditingFoodVersion(null); setFoodQuery(""); setFoodEditorOpen(false);
       await loadFoods("");
     }, editingFoodId !== null ? "Lebensmittel aktualisiert." : "Lebensmittel gespeichert oder aktualisiert.");
   }
   function editFood(food: Food) {
-    setEditingFoodId(food.id); setFoodName(food.name);
+    setEditingFoodId(food.id); setEditingFoodVersion(food.version); setFoodName(food.name);
     setFoodValues(Object.fromEntries(keys.map(({ key }) => [key, String(food[key])])) as typeof foodValues);
     setFoodEditorOpen(true);
   }
@@ -145,7 +147,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
     await runAction(async () => {
       const payload = { name: recipeName.trim(), meal_type: recipeType,
         ingredients: selected.map(item => ({ food_id: Number(item.foodId), amount_g: Number(item.amount) })) };
-      if (editingRecipe) await api(`/api/nutrition/recipes/${editingRecipe.id}`, { method: "PUT", body: JSON.stringify(payload) });
+      if (editingRecipe) await api(`/api/nutrition/recipes/${editingRecipe.id}`, { method: "PUT", body: JSON.stringify({ ...payload, version: editingRecipe.version }) });
       else await api("/api/nutrition/recipes", { method: "POST", body: JSON.stringify(payload) });
       setRecipeName(""); setRecipeType("breakfast"); setIngredients([{ foodId: "", amount: "50" }]);
       setEditingRecipe(null); await loadRecipes("", false); setFavoritesOnly(false); setRecipeQuery(""); setView("recipes");
@@ -266,7 +268,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
         <div className="panel-heading"><div><h2>Lebensmittel</h2><p>Gemeinsamer Lebensmittelkatalog deines Haushalts. Einmal anlegen, beliebig oft wiederverwenden.</p></div><button className="secondary-button" onClick={() => setView("recipes")}><ArrowLeft size={15}/> Zurück zu Gerichten</button></div>
         <div className="food-editor-toggle">
           <div><b>{editingFoodId !== null ? "Lebensmittel bearbeiten" : "Neues Lebensmittel"}</b><small>Für Haushaltsmitglieder verfügbar · Nährwerte je 100 g</small></div>
-          <button className="secondary-button" type="button" onClick={() => { setFoodEditorOpen(value => !value); if (foodEditorOpen) { setEditingFoodId(null); setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" }); } }}>
+          <button className="secondary-button" type="button" onClick={() => { setFoodEditorOpen(value => !value); if (foodEditorOpen) { setEditingFoodId(null); setEditingFoodVersion(null); setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" }); } }}>
             <Plus size={15}/> {foodEditorOpen ? "Einklappen" : "Lebensmittel anlegen"}
           </button>
         </div>
@@ -274,7 +276,7 @@ export default function Nutrition({ onDataChanged }: { onDataChanged: () => Prom
           <label className="food-name-field">Name<input required maxLength={160} value={foodName} onChange={e => setFoodName(e.target.value)}/></label>
           <div className="nutrition-grid">{keys.map(({ key, label, unit }) => <label key={key}>{label} ({unit} je 100 g)<input type="number" min="0" max="10000" step="0.1" required value={foodValues[key]} onChange={e => setFoodValues({ ...foodValues, [key]: e.target.value })}/></label>)}</div>
           <div className="recipe-form-actions"><button className="primary" disabled={busy}><Save size={16}/> {editingFoodId !== null ? "Änderungen speichern" : "Lebensmittel speichern"}</button>
-            <button type="button" className="secondary-button" onClick={() => { setFoodEditorOpen(false); setEditingFoodId(null); setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" }); }}>Abbrechen</button></div>
+            <button type="button" className="secondary-button" onClick={() => { setFoodEditorOpen(false); setEditingFoodId(null); setEditingFoodVersion(null); setFoodName(""); setFoodValues({ calories: "", protein_g: "", carbs_g: "", fat_g: "" }); }}>Abbrechen</button></div>
         </form>}
       </section>
       <section className="panel">
