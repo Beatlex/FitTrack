@@ -4,15 +4,18 @@ The migration is additive and idempotent so existing local SQLite databases can
 continue to start without destructive rebuilds. Alembic will replace this
 bootstrap migration once the versioned migration system is introduced.
 """
-from sqlalchemy import Engine, inspect, text
+from contextlib import nullcontext
+
+from sqlalchemy import Connection, Engine, inspect, text
 
 from .database import engine as default_engine
 from .nutrition_models import CatalogAuditEvent
 
 
-def upgrade(bind: Engine = default_engine) -> None:
+def upgrade(bind: Engine | Connection = default_engine) -> None:
     inspector = inspect(bind)
-    with bind.begin() as connection:
+    transaction = bind.begin() if isinstance(bind, Engine) else nullcontext(bind)
+    with transaction as connection:
         for table_name in ("foods", "meal_templates"):
             if table_name not in inspector.get_table_names():
                 continue
