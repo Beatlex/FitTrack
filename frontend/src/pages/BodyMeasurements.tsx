@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Ruler, Save, Scale, Trash2, X } from "lucide-react";
+import { Pencil, Ruler, Save, Scale, Trash2, X } from "lucide-react";
 import { api } from "../services/api";
 
 type Measurement = {
