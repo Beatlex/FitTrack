@@ -424,3 +424,72 @@ def test_catalog_idor_attempts_are_rejected_without_explicit_grants(client: Test
         "is_favorite": True,
     }).status_code == 404
     assert client.post(f"/api/nutrition/foods/{food['id']}/hide").status_code == 404
+
+
+def test_catalog_versions_prevent_lost_updates_and_audit_changes(client: TestClient) -> None:
+    login(client, "catalog-audit-owner")
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Audit Food", "basis_g": 100, "calories": 100,
+        "protein_g": 5, "carbs_g": 10, "fat_g": 2,
+    })
+    assert food.status_code == 201
+    assert food.json()["version"] == 1
+
+    first_edit = client.put(f"/api/nutrition/foods/{food.json()['id']}", json={
+        "name": "Audit Food Updated", "basis_g": 100, "calories": 120,
+        "protein_g": 6, "carbs_g": 12, "fat_g": 3, "version": 1,
+    })
+    assert first_edit.status_code == 200
+    assert first_edit.json()["version"] == 2
+
+    stale_edit = client.put(f"/api/nutrition/foods/{food.json()['id']}", json={
+        "name": "Stale Overwrite", "basis_g": 100, "calories": 999,
+        "protein_g": 99, "carbs_g": 99, "fat_g": 99, "version": 1,
+    })
+    assert stale_edit.status_code == 409
+    visible = client.get("/api/nutrition/foods?q=Audit")
+    assert visible.status_code == 200
+    assert visible.json()[0]["name"] == "Audit Food Updated"
+    assert visible.json()[0]["calories"] == 120
+    assert visible.json()[0]["version"] == 2
+
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Audit Recipe", "meal_type": "lunch",
+        "ingredients": [{"food_id": food.json()["id"], "amount_g": 100}],
+    })
+    assert recipe.status_code == 201
+    assert recipe.json()["version"] == 1
+
+    recipe_edit = client.put(f"/api/nutrition/recipes/{recipe.json()['id']}", json={
+        "name": "Audit Recipe Updated", "meal_type": "dinner",
+        "ingredients": [{"food_id": food.json()["id"], "amount_g": 150}],
+        "version": 1,
+    })
+    assert recipe_edit.status_code == 200
+    assert recipe_edit.json()["version"] == 2
+
+    stale_recipe = client.put(f"/api/nutrition/recipes/{recipe.json()['id']}", json={
+        "name": "Stale Recipe Overwrite", "meal_type": "snack",
+        "ingredients": [{"food_id": food.json()["id"], "amount_g": 10}],
+        "version": 1,
+    })
+    assert stale_recipe.status_code == 409
+    current_recipe = client.get("/api/nutrition/recipes?q=Audit Recipe Updated")
+    assert current_recipe.status_code == 200
+    assert current_recipe.json()[0]["name"] == "Audit Recipe Updated"
+    assert current_recipe.json()[0]["ingredients"][0]["amount_g"] == 150
+    assert current_recipe.json()[0]["version"] == 2
+
+    audit = client.get("/api/household/audit")
+    assert audit.status_code == 200
+    events = audit.json()
+    assert [event["action"] for event in events[:4]] == [
+        "updated", "created", "updated", "created",
+    ]
+    food_update_event = next(
+        event for event in events
+        if event["entity_type"] == "food" and event["action"] == "updated"
+    )
+    assert food_update_event["actor_username"] == "catalog-audit-owner"
+    assert food_update_event["changes"]["before"]["calories"] == 100
+    assert food_update_event["changes"]["after"]["calories"] == 120
