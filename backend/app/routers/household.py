@@ -202,7 +202,18 @@ def grant_food_access(food_id: int, target_user_id: int,
         raise HTTPException(404, "Haushalts-Lebensmittel nicht gefunden.")
     if target.role == "owner" or food.owner_id == target_user_id:
         raise HTTPException(409, "Der Haushaltsinhaber und der Ersteller behalten ihren Zugriff.")
+    already_granted = db.scalar(select(FoodAccess.id).where(
+        FoodAccess.food_id == food.id, FoodAccess.user_id == target.user_id
+    )) is not None
     grant_food_to_user(db, food.id, target.user_id)
+    if not already_granted:
+        target_user = db.get(User, target.user_id)
+        record_catalog_event(
+            db, actor=user, household_id=membership.household_id,
+            entity_type="food", entity_id=food.id, entity_name=food.name,
+            action="access_granted",
+            changes={"member_user_id": target.user_id, "member_username": target_user.username},
+        )
     db.commit()
     return Response(status_code=204)
 
@@ -222,7 +233,18 @@ def revoke_food_access(food_id: int, target_user_id: int,
         raise HTTPException(404, "Haushalts-Lebensmittel nicht gefunden.")
     if target.role == "owner" or food.owner_id == target_user_id:
         raise HTTPException(409, "Der Haushaltsinhaber und der Ersteller behalten ihren Zugriff.")
+    had_access = db.scalar(select(FoodAccess.id).where(
+        FoodAccess.food_id == food.id, FoodAccess.user_id == target.user_id
+    )) is not None
     revoke_food_from_user(db, food.id, target.user_id)
+    if had_access:
+        target_user = db.get(User, target.user_id)
+        record_catalog_event(
+            db, actor=user, household_id=membership.household_id,
+            entity_type="food", entity_id=food.id, entity_name=food.name,
+            action="access_revoked",
+            changes={"member_user_id": target.user_id, "member_username": target_user.username},
+        )
     db.commit()
     return Response(status_code=204)
 
@@ -240,7 +262,18 @@ def grant_recipe_access(recipe_id: int, target_user_id: int,
         raise HTTPException(404, "Haushalts-Gericht nicht gefunden.")
     if target.role == "owner" or recipe.owner_id == target_user_id:
         raise HTTPException(409, "Der Haushaltsinhaber und der Ersteller behalten ihren Zugriff.")
+    already_granted = db.scalar(select(RecipeAccess.id).where(
+        RecipeAccess.recipe_id == recipe.id, RecipeAccess.user_id == target.user_id
+    )) is not None
     grant_recipe_to_user(db, recipe.id, target.user_id)
+    if not already_granted:
+        target_user = db.get(User, target.user_id)
+        record_catalog_event(
+            db, actor=user, household_id=membership.household_id,
+            entity_type="recipe", entity_id=recipe.id, entity_name=recipe.name,
+            action="access_granted",
+            changes={"member_user_id": target.user_id, "member_username": target_user.username},
+        )
     db.commit()
     return Response(status_code=204)
 
@@ -258,7 +291,18 @@ def revoke_recipe_access(recipe_id: int, target_user_id: int,
         raise HTTPException(404, "Haushalts-Gericht nicht gefunden.")
     if target.role == "owner" or recipe.owner_id == target_user_id:
         raise HTTPException(409, "Der Haushaltsinhaber und der Ersteller behalten ihren Zugriff.")
+    had_access = db.scalar(select(RecipeAccess.id).where(
+        RecipeAccess.recipe_id == recipe.id, RecipeAccess.user_id == target.user_id
+    )) is not None
     revoke_recipe_from_user(db, recipe.id, target.user_id)
+    if had_access:
+        target_user = db.get(User, target.user_id)
+        record_catalog_event(
+            db, actor=user, household_id=membership.household_id,
+            entity_type="recipe", entity_id=recipe.id, entity_name=recipe.name,
+            action="access_revoked",
+            changes={"member_user_id": target.user_id, "member_username": target_user.username},
+        )
     db.commit()
     return Response(status_code=204)
 
