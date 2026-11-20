@@ -1,17 +1,45 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { api } from "../services/api";
 
 type Props = {
   username: string;
+  timezone: string;
+  onTimezoneChanged: (timezone_name: string) => void;
   onDeleted: () => void;
 };
 
-export default function AccountSettings({ username, onDeleted }: Props) {
+export default function AccountSettings({ username, timezone, onTimezoneChanged, onDeleted }: Props) {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [timezoneDraft, setTimezoneDraft] = useState(timezone);
+  const [timezoneBusy, setTimezoneBusy] = useState(false);
+  const [timezoneError, setTimezoneError] = useState("");
+  const [timezoneNotice, setTimezoneNotice] = useState("");
+
+  useEffect(() => setTimezoneDraft(timezone), [timezone]);
+
+  async function saveTimezone(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setTimezoneBusy(true);
+    setTimezoneError("");
+    setTimezoneNotice("");
+    try {
+      const result = await api<{ timezone_name: string }>("/api/auth/timezone", {
+        method: "PATCH",
+        body: JSON.stringify({ timezone_name: timezoneDraft.trim() }),
+      });
+      setTimezoneDraft(result.timezone_name);
+      onTimezoneChanged(result.timezone_name);
+      setTimezoneNotice("Zeitzone wurde gespeichert.");
+    } catch (err) {
+      setTimezoneError(err instanceof Error ? err.message : "Zeitzone konnte nicht gespeichert werden.");
+    } finally {
+      setTimezoneBusy(false);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,7 +74,7 @@ export default function AccountSettings({ username, onDeleted }: Props) {
         <h2>Kontoverwaltung</h2>
         <p>Angemeldet als <b>{username}</b></p>
       </section>
-      <section className="panel account-danger-panel">
+      <section className="panel account-timezone-panel">\n        <h2>Zeitzone</h2>\n        <p>Wird für deine Tagesübersicht und die Zuordnung deiner Mahlzeiten verwendet. Zeitstempel bleiben intern in UTC gespeichert.</p>\n        <form className="account-timezone-form" onSubmit={saveTimezone}>\n          <label htmlFor="account-timezone">IANA-Zeitzone</label>\n          <input id="account-timezone" value={timezoneDraft} onChange={event => setTimezoneDraft(event.target.value)} placeholder="Europe/Berlin" maxLength={64} required />\n          <small>Beispiele: Europe/Berlin, Europe/Vienna, America/New_York</small>\n          {timezoneError && <p className="error-message form-message" role="alert">{timezoneError}</p>}\n          {timezoneNotice && <p className="success-message" role="status">{timezoneNotice}</p>}\n          <button className="primary" type="submit" disabled={timezoneBusy || !timezoneDraft.trim() || timezoneDraft.trim() === timezone}>{timezoneBusy ? "Wird gespeichert …" : "Zeitzone speichern"}</button>\n        </form>\n      </section>\n      <section className="panel account-danger-panel">
         <div className="account-danger-heading">
           <div className="account-danger-icon"><AlertTriangle size={19}/></div>
           <div><h2>Konto endgültig löschen</h2><p>Diese Aktion kann nicht rückgängig gemacht werden.</p></div>
