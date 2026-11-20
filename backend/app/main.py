@@ -23,7 +23,7 @@ from .account_service import delete_account as delete_account_data
 from .migrate_catalog_access import upgrade as migrate_catalog_access
 from .migrate_catalog_audit import upgrade as migrate_catalog_audit
 from .migrate_user_timezone import upgrade as migrate_user_timezone
-from .timezones import local_day_bounds, local_today, validated_timezone
+from .timezones import local_day_bounds, local_today, normalize_utc, validated_timezone
 
 Base.metadata.create_all(bind=engine)
 
@@ -72,11 +72,7 @@ app.add_middleware(
 
 
 def measurement_to_dict(entry: Measurement) -> dict:
-    measured_at = entry.measured_at
-    if measured_at.tzinfo is None:
-        measured_at = measured_at.replace(tzinfo=timezone.utc)
-    else:
-        measured_at = measured_at.astimezone(timezone.utc)
+    measured_at = normalize_utc(entry.measured_at)
     fields = ("weight_kg", "waist_cm", "chest_cm", "hip_cm", "arm_cm", "thigh_cm")
     return {
         "id": entry.id,
@@ -89,7 +85,7 @@ def food_to_dict(entry: FoodEntry) -> dict:
     fields = ("meal_type", "food_name", "amount_g", "calories", "protein_g", "carbs_g", "fat_g")
     return {
         "id": entry.id,
-        "consumed_at": entry.consumed_at.isoformat(),
+        "consumed_at": normalize_utc(entry.consumed_at).isoformat(),
         **{field: getattr(entry, field) for field in fields},
     }
 
@@ -191,7 +187,7 @@ def add_measurement(
     user: User = Depends(current_user),
 ):
     values = data.model_dump(exclude={"measured_at"})
-    measured_at = data.measured_at or datetime.now(timezone.utc)
+    measured_at = normalize_utc(data.measured_at or datetime.now(timezone.utc))
     entry = Measurement(user_id=user.id, measured_at=measured_at, **values)
     db.add(entry)
     db.commit()
@@ -219,7 +215,7 @@ def update_measurement(
     for field, value in changes.items():
         if field == "measured_at" and value is None:
             raise HTTPException(400, "Das Messdatum darf nicht leer sein.")
-        setattr(entry, field, value)
+        setattr(entry, field, normalize_utc(value) if field == "measured_at" else value)
 
     measurement_fields = ("weight_kg", "waist_cm", "chest_cm", "hip_cm", "arm_cm", "thigh_cm")
     if not any(getattr(entry, field) is not None for field in measurement_fields):
@@ -268,7 +264,7 @@ def add_food(data: dict, db: Session = Depends(get_db), user: User = Depends(cur
     try:
         fields = ("amount_g", "calories", "protein_g", "carbs_g", "fat_g")
         values = {field: float(data.get(field) or 0) for field in fields}
-        consumed_at = (
+        consumed_at = normalize_utc(
             datetime.fromisoformat(data["consumed_at"])
             if data.get("consumed_at")
             else datetime.now(timezone.utc)
