@@ -24,5 +24,14 @@ def upgrade(bind: Engine = default_engine) -> None:
                     f"ALTER TABLE {table_name} "
                     "ADD COLUMN version INTEGER NOT NULL DEFAULT 1"
                 ))
+            if "updated_at" not in existing_columns:
+                connection.execute(text(
+                    f"ALTER TABLE {table_name} ADD COLUMN updated_at DATETIME"
+                ))
+                connection.execute(text(
+                    f"UPDATE {table_name} "
+                    "SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP) "
+                    "WHERE updated_at IS NULL"
+                ))
 
         CatalogAuditEvent.__table__.create(bind=connection, checkfirst=True)
