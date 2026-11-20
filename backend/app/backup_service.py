@@ -65,7 +65,7 @@ def create_backup(
     backup_dir = backup_dir.resolve()
     backup_dir.mkdir(parents=True, exist_ok=True)
     timestamp = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    stamp = timestamp.strftime("%Y%m%dT%H%M%SZ")
+    stamp = timestamp.strftime("%Y%m%dT%H%M%S%fZ")
     if kind == "weekly":
         iso_year, iso_week, _ = timestamp.isocalendar()
         stamp = f"{iso_year}W{iso_week:02d}-{stamp}"
