@@ -21,12 +21,15 @@ from .schemas import MeasurementCreate, MeasurementUpdate
 from .account_service import delete_account as delete_account_data
 from .migrate_catalog_access import upgrade as migrate_catalog_access
 from .migrate_catalog_audit import upgrade as migrate_catalog_audit
+from .migrate_user_timezone import upgrade as migrate_user_timezone
+from .timezones import local_day_bounds, local_today, validated_timezone
 
 Base.metadata.create_all(bind=engine)
 
 # Additive catalog ACL migration; safe to re-run during application startup.
 migrate_catalog_access()
 migrate_catalog_audit()
+migrate_user_timezone()
 password_hasher = PasswordHash.recommended()
 
 is_production = os.getenv("APP_ENV", "development").lower() == "production"
@@ -41,6 +44,10 @@ if len(session_secret) < 32:
 cookie_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 if is_production and not cookie_secure:
     raise RuntimeError("COOKIE_SECURE=true ist im Produktionsbetrieb erforderlich.")
+
+class TimezoneUpdateRequest(BaseModel):
+    timezone_name: str = Field(min_length=1, max_length=64)
+
 
 class AccountDeletionRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
@@ -116,7 +123,7 @@ def login(data: dict, request: Request, db: Session = Depends(get_db)):
         raise HTTPException(401, "Benutzername oder Passwort falsch.")
     request.session.clear()
     request.session["user_id"] = user.id
-    return {"id": user.id, "username": user.username}
+    return {"id": user.id, "username": user.username, "timezone_name": user.timezone_name}
 
 
 @app.post("/api/auth/logout")
@@ -127,7 +134,23 @@ def logout(request: Request):
 
 @app.get("/api/auth/me")
 def me(user: User = Depends(current_user)):
-    return {"id": user.id, "username": user.username}
+    return {"id": user.id, "username": user.username, "timezone_name": user.timezone_name}
+
+
+@app.patch("/api/auth/timezone")
+def update_timezone(
+    data: TimezoneUpdateRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    try:
+        validated_timezone(data.timezone_name)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    user.timezone_name = data.timezone_name
+    db.commit()
+    db.refresh(user)
+    return {"timezone_name": user.timezone_name}
 
 
 
@@ -268,11 +291,13 @@ def add_food(data: dict, db: Session = Depends(get_db), user: User = Depends(cur
 
 @app.get("/api/dashboard")
 def dashboard(db: Session = Depends(get_db), user: User = Depends(current_user)):
-    today = datetime.now().date()
+    today = local_today(user.timezone_name)
+    start, end = local_day_bounds(today, user.timezone_name)
     entries = db.scalars(
         select(FoodEntry).where(
             FoodEntry.user_id == user.id,
-            func.date(FoodEntry.consumed_at) == today,
+            FoodEntry.consumed_at >= start,
+            FoodEntry.consumed_at < end,
         )
     ).all()
     latest = db.scalar(
