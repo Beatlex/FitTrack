@@ -1,8 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { CalendarDays, Check, Crown, Home, LogOut, Plus, ShieldCheck, ShoppingBasket, UserMinus, Users, X } from "lucide-react";
 import { api } from "../services/api";
+import CatalogAccessSection, {
+  type CatalogAccessData,
+  type CatalogItem,
+  type HouseholdMember as Member,
+} from "./CatalogAccessSection";
 
-type Member = { user_id: number; username: string; role: "owner" | "member"; joined_at: string };
 type Invitation = { id: number; household_name?: string; invited_by?: string; username?: string; created_at: string };
 type HouseholdData = {
   id: number;
@@ -22,6 +26,7 @@ const dateLabel = (value: string) => new Date(value).toLocaleDateString("de-DE")
 
 export default function HouseholdPage() {
   const [data, setData] = useState<ResponseData | null>(null);
+  const [catalogAccess, setCatalogAccess] = useState<CatalogAccessData | null>(null);
   const [username, setUsername] = useState("");
   const [householdName, setHouseholdName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -32,7 +37,13 @@ export default function HouseholdPage() {
   async function load() {
     setLoading(true);
     try {
-      setData(await api<ResponseData>("/api/household"));
+      const next = await api<ResponseData>("/api/household");
+      setData(next);
+      if (next.household?.current_user_role === "owner") {
+        setCatalogAccess(await api<CatalogAccessData>("/api/household/catalog-access"));
+      } else {
+        setCatalogAccess(null);
+      }
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Haushalt konnte nicht geladen werden.");
@@ -79,6 +90,16 @@ export default function HouseholdPage() {
       });
       setUsername("");
     }, "Einladung wurde erstellt. Der Benutzer muss sie noch annehmen.");
+  }
+
+  async function updateCatalogGrant(kind: "foods" | "recipes", item: CatalogItem, member: Member, granted: boolean) {
+    const method = granted ? "PUT" : "DELETE";
+    await run(async () => {
+      await api(
+        `/api/household/catalog-access/${kind}/${item.id}/members/${member.user_id}`,
+        { method },
+      );
+    }, granted ? "Freigabe wurde erteilt." : "Freigabe wurde entzogen.");
   }
 
   if (loading && !data) return <section className="panel household-loading">Haushalt wird geladen …</section>;
@@ -168,6 +189,24 @@ export default function HouseholdPage() {
           </div>}
         </section>}
 
+      {!household && <>
+      <section className="household-future-grid">
+        <article className="panel future-module"><CalendarDays className="future-icon"/><div><b>Wochenplan</b><small>Gemeinsame Planung eurer Gerichte</small><span>In Planung</span></div></article>
+        <article className="panel future-module"><ShoppingBasket className="future-icon"/><div><b>Einkaufsplan</b><small>Zutaten automatisch zusammenfassen</small><span>In Planung</span></div></article>
+      </section>
+      <section className="household-sharing-note"><ShieldCheck size={17}/><p>Gemeinsam: Lebensmittel und Gerichte. Privat: Körperwerte, Tagesziele und protokollierte Mahlzeiten.</p></section>
+      </>}
+
+        {isOwner && catalogAccess && (
+          <CatalogAccessSection
+            catalogAccess={catalogAccess}
+            members={household.members}
+            currentUserId={household.current_user_id}
+            busy={busy}
+            onGrantChange={(kind, item, member, granted) => void updateCatalogGrant(kind, item, member, granted)}
+          />
+        )}
+
         {isOwner && <section className="panel household-section leave-household">
           <div><h2><ShieldCheck size={18}/> Admin-Verantwortung</h2><p>{household.members.length > 1 ? "Du bist der Admin und bleibst es. Solange weitere Mitglieder im Haushalt sind, kannst du ihn nicht verlassen." : "Du bist das einzige Mitglied. Wenn du den Haushalt auflöst, werden auch offene Einladungen und die Haushaltsfreigabe entfernt. Deine persönlichen Daten bleiben erhalten."}</p></div>
           {household.members.length === 1 && <button className="secondary-button" disabled={busy} onClick={() => {
@@ -187,11 +226,13 @@ export default function HouseholdPage() {
         </section>}
       </>}
 
+      {!household && <>
       <section className="household-future-grid">
         <article className="panel future-module"><CalendarDays className="future-icon"/><div><b>Wochenplan</b><small>Gemeinsame Planung eurer Gerichte</small><span>In Planung</span></div></article>
         <article className="panel future-module"><ShoppingBasket className="future-icon"/><div><b>Einkaufsplan</b><small>Zutaten automatisch zusammenfassen</small><span>In Planung</span></div></article>
       </section>
       <section className="household-sharing-note"><ShieldCheck size={17}/><p>Gemeinsam: Lebensmittel und Gerichte. Privat: Körperwerte, Tagesziele und protokollierte Mahlzeiten.</p></section>
+      </>}
     </div>
   );
 }

@@ -245,3 +245,199 @@ def test_pre_household_foods_and_recipes_become_shared_after_household_join(clie
     assert client.delete("/api/household/leave").status_code == 204
     assert client.get("/api/nutrition/foods?q=Vorhandene").json() == []
     assert len(client.get("/api/nutrition/foods?q=Eigene Banane").json()) == 1
+
+
+def test_account_deletion_transfers_household_and_preserves_shared_catalog(client: TestClient) -> None:
+    register(client, "delete-owner")
+    login(client, "delete-owner")
+    assert client.post("/api/household", json={"name": "Delete Owner Household"}).status_code == 201
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Shared Delete Food", "basis_g": 100, "calories": 90,
+        "protein_g": 3, "carbs_g": 12, "fat_g": 2,
+    })
+    assert food.status_code == 201
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Shared Delete Recipe", "meal_type": "lunch",
+        "ingredients": [{"food_id": food.json()["id"], "amount_g": 100}],
+    })
+    assert recipe.status_code == 201
+
+    register(client, "delete-member")
+    invitation = client.post("/api/household/invitations", json={"username": "delete-member"})
+    assert invitation.status_code == 201
+    client.post("/api/auth/logout")
+    login(client, "delete-member")
+    assert client.post(f"/api/household/invitations/{invitation.json()['id']}/accept").status_code == 200
+    assert len(client.get("/api/nutrition/foods?q=Shared%20Delete").json()) == 1
+    assert len(client.get("/api/nutrition/recipes?q=Shared%20Delete").json()) == 1
+
+    client.post("/api/auth/logout")
+    login(client, "delete-owner")
+    deleted = client.request("DELETE", "/api/auth/account", json={
+        "password": PASSWORD, "confirmation": "delete-owner",
+    })
+    assert deleted.status_code == 204
+    assert client.get("/api/auth/me").status_code == 401
+    assert client.post("/api/auth/login", json={
+        "username": "delete-owner", "password": PASSWORD,
+    }).status_code == 401
+
+    login(client, "delete-member")
+    household = client.get("/api/household").json()["household"]
+    assert household["owner_id"] == household["current_user_id"]
+    assert household["current_user_role"] == "owner"
+    assert len(client.get("/api/nutrition/foods?q=Shared%20Delete").json()) == 1
+    remaining_recipes = client.get("/api/nutrition/recipes?q=Shared%20Delete")
+    assert remaining_recipes.status_code == 200
+    assert len(remaining_recipes.json()) == 1
+    logged = client.post(f"/api/nutrition/recipes/{recipe.json()['id']}/log")
+    assert logged.status_code == 201
+    assert logged.json()["calories"] == 90
+
+
+def test_account_deletion_keeps_food_as_recipe_dependency_without_general_access(client: TestClient) -> None:
+    register(client, "dependency-recipe-owner")
+    login(client, "dependency-recipe-owner")
+    assert client.post("/api/household", json={"name": "Dependency Household"}).status_code == 201
+    register(client, "dependency-food-owner")
+    invitation = client.post("/api/household/invitations", json={
+        "username": "dependency-food-owner",
+    })
+    assert invitation.status_code == 201
+    client.post("/api/auth/logout")
+    login(client, "dependency-food-owner")
+    assert client.post(f"/api/household/invitations/{invitation.json()['id']}/accept").status_code == 200
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Retained Recipe Ingredient", "basis_g": 100, "calories": 120,
+        "protein_g": 5, "carbs_g": 15, "fat_g": 4,
+    })
+    assert food.status_code == 201
+
+    client.post("/api/auth/logout")
+    login(client, "dependency-recipe-owner")
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Retained Dependency Recipe", "meal_type": "dinner",
+        "ingredients": [{"food_id": food.json()["id"], "amount_g": 100}],
+    })
+    assert recipe.status_code == 201
+
+    client.post("/api/auth/logout")
+    login(client, "dependency-food-owner")
+    assert client.delete("/api/household/leave").status_code == 204
+    deleted = client.request("DELETE", "/api/auth/account", json={
+        "password": PASSWORD, "confirmation": "dependency-food-owner",
+    })
+    assert deleted.status_code == 204
+
+    client.post("/api/auth/logout")
+    login(client, "dependency-recipe-owner")
+    assert client.get("/api/nutrition/foods?q=Retained%20Recipe").json() == []
+    visible = client.get("/api/nutrition/recipes?q=Retained%20Dependency")
+    assert len(visible.json()) == 1
+    assert visible.json()[0]["ingredients"][0]["food_name"] == "Retained Recipe Ingredient"
+    logged = client.post(f"/api/nutrition/recipes/{recipe.json()['id']}/log")
+    assert logged.status_code == 201
+    assert logged.json()["calories"] == 120
+
+
+def test_admin_can_grant_and_revoke_individual_catalog_access(client: TestClient) -> None:
+    register(client, "acl-admin")
+    register(client, "acl-member")
+    login(client, "acl-admin")
+    assert client.post("/api/household", json={"name": "ACL Household"}).status_code == 201
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Individually Shared Food", "basis_g": 100, "calories": 150,
+        "protein_g": 6, "carbs_g": 18, "fat_g": 5,
+    }).json()
+    recipe = client.post("/api/nutrition/recipes", json={
+        "name": "Individually Shared Recipe", "meal_type": "lunch",
+        "ingredients": [{"food_id": food["id"], "amount_g": 100}],
+    }).json()
+    invitation = client.post("/api/household/invitations", json={"username": "acl-member"}).json()
+    client.post("/api/auth/logout")
+    login(client, "acl-member")
+    assert client.post(f"/api/household/invitations/{invitation['id']}/accept").status_code == 200
+    household = client.get("/api/household").json()["household"]
+    member_id = household["current_user_id"]
+
+    # Ordinary members cannot inspect or modify the household permission matrix.
+    assert client.get("/api/household/catalog-access").status_code == 403
+    assert client.delete(
+        f"/api/household/catalog-access/foods/{food['id']}/members/{member_id}"
+    ).status_code == 403
+
+    client.post("/api/auth/logout")
+    login(client, "acl-admin")
+    matrix = client.get("/api/household/catalog-access")
+    assert matrix.status_code == 200
+    assert member_id in next(x for x in matrix.json()["foods"] if x["id"] == food["id"])["granted_user_ids"]
+    assert member_id in next(x for x in matrix.json()["recipes"] if x["id"] == recipe["id"])["granted_user_ids"]
+
+    assert client.delete(
+        f"/api/household/catalog-access/foods/{food['id']}/members/{member_id}"
+    ).status_code == 204
+    # Recipe access includes contextual ingredient resolution, but not picker access.
+    client.post("/api/auth/logout")
+    login(client, "acl-member")
+    assert client.get("/api/nutrition/foods?q=Individually%20Shared").json() == []
+    visible_recipe = client.get("/api/nutrition/recipes?q=Individually%20Shared")
+    assert len(visible_recipe.json()) == 1
+    assert visible_recipe.json()[0]["ingredients"][0]["food_name"] == "Individually Shared Food"
+    assert client.post(f"/api/nutrition/recipes/{recipe['id']}/log").status_code == 201
+    assert client.post("/api/nutrition/meals", json={
+        "meal_name": "Unauthorized direct ingredient",
+        "meal_type": "lunch",
+        "ingredients": [{"food_id": food["id"], "amount_g": 100}],
+    }).status_code == 404
+
+    client.post("/api/auth/logout")
+    login(client, "acl-admin")
+    assert client.delete(
+        f"/api/household/catalog-access/recipes/{recipe['id']}/members/{member_id}"
+    ).status_code == 204
+    client.post("/api/auth/logout")
+    login(client, "acl-member")
+    assert client.get("/api/nutrition/recipes?q=Individually%20Shared").json() == []
+    assert client.post(f"/api/nutrition/recipes/{recipe['id']}/log").status_code == 404
+
+    client.post("/api/auth/logout")
+    login(client, "acl-admin")
+    assert client.put(
+        f"/api/household/catalog-access/recipes/{recipe['id']}/members/{member_id}"
+    ).status_code == 204
+    client.post("/api/auth/logout")
+    login(client, "acl-member")
+    restored = client.get("/api/nutrition/recipes?q=Individually%20Shared")
+    assert len(restored.json()) == 1
+    assert restored.json()[0]["ingredients"][0]["food_name"] == "Individually Shared Food"
+
+
+def test_catalog_permissions_cannot_revoke_creator_or_owner_access(client: TestClient) -> None:
+    register(client, "acl-protected-owner")
+    register(client, "acl-protected-member")
+    login(client, "acl-protected-owner")
+    assert client.post("/api/household", json={"name": "Protected ACL Household"}).status_code == 201
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Creator Protected Food", "basis_g": 100, "calories": 80,
+        "protein_g": 2, "carbs_g": 10, "fat_g": 1,
+    }).json()
+    invitation = client.post("/api/household/invitations", json={"username": "acl-protected-member"}).json()
+    client.post("/api/auth/logout")
+    login(client, "acl-protected-member")
+    assert client.post(f"/api/household/invitations/{invitation['id']}/accept").status_code == 200
+    member_household = client.get("/api/household").json()["household"]
+    member_id = member_household["current_user_id"]
+    member_food = client.post("/api/nutrition/foods", json={
+        "name": "Member Creator Protected Food", "basis_g": 100, "calories": 70,
+        "protein_g": 3, "carbs_g": 8, "fat_g": 1,
+    }).json()
+
+    client.post("/api/auth/logout")
+    login(client, "acl-protected-owner")
+    assert client.delete(
+        f"/api/household/catalog-access/foods/{member_food['id']}/members/{member_id}"
+    ).status_code == 409
+    assert client.delete(
+        f"/api/household/catalog-access/foods/{food['id']}/members/{member_household['owner_id']}"
+    ).status_code == 409
+    assert client.get("/api/nutrition/foods?q=Creator%20Protected").status_code == 200

@@ -20,7 +20,8 @@ class Food(Base):
     fat_g: Mapped[float] = mapped_column(Float, nullable=False)
     is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    # Shared by the two current household accounts; replace with explicit ACLs later.
+    # Legacy compatibility metadata; FoodAccess is authoritative for visibility.
+    # Legacy compatibility metadata; RecipeAccess is authoritative for visibility.
     is_shared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -88,3 +89,86 @@ class MealTemplateFavorite(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     template_id: Mapped[int] = mapped_column(ForeignKey("meal_templates.id", ondelete="CASCADE"), nullable=False, index=True)
+
+
+class FoodAccess(Base):
+    """Explicit per-user read/write grant for a catalog food."""
+    __tablename__ = "food_access"
+    __table_args__ = (
+        UniqueConstraint("food_id", "user_id", name="uq_food_access_food_user"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    food_id: Mapped[int] = mapped_column(
+        ForeignKey("foods.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RecipeAccess(Base):
+    """Explicit per-user read/write grant for a saved recipe."""
+    __tablename__ = "recipe_access"
+    __table_args__ = (
+        UniqueConstraint("recipe_id", "user_id", name="uq_recipe_access_recipe_user"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recipe_id: Mapped[int] = mapped_column(
+        ForeignKey("meal_templates.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FoodHiddenByUser(Base):
+    """Per-user hide marker; hiding never deletes the shared food."""
+    __tablename__ = "food_hidden_by_user"
+    __table_args__ = (
+        UniqueConstraint("food_id", "user_id", name="uq_food_hidden_food_user"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    food_id: Mapped[int] = mapped_column(
+        ForeignKey("foods.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    hidden_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RecipeHiddenByUser(Base):
+    """Per-user hide marker; hiding never deletes the shared recipe."""
+    __tablename__ = "recipe_hidden_by_user"
+    __table_args__ = (
+        UniqueConstraint("recipe_id", "user_id", name="uq_recipe_hidden_recipe_user"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recipe_id: Mapped[int] = mapped_column(
+        ForeignKey("meal_templates.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    hidden_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RecipeIngredientAccess(Base):
+    """Contextual ingredient access without general food-catalog visibility."""
+    __tablename__ = "recipe_ingredient_access"
+    __table_args__ = (
+        UniqueConstraint("recipe_id", "food_id", "user_id", name="uq_recipe_ingredient_access_recipe_food_user"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recipe_id: Mapped[int] = mapped_column(
+        ForeignKey("meal_templates.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    food_id: Mapped[int] = mapped_column(
+        ForeignKey("foods.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

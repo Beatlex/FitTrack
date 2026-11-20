@@ -8,9 +8,15 @@ from ..database import get_db
 from ..dependencies import current_user
 from ..models import User
 from ..household_service import household_id_for_user
+from ..catalog_access import (
+    visible_foods_statement as acl_visible_foods_statement,
+    visible_recipes_statement as acl_visible_recipes_statement,
+    grant_new_food, grant_new_recipe, sync_recipe_ingredient_grants,
+)
 from ..nutrition_models import (
-    Food, MealEntry, MealIngredient, MealTemplate, MealTemplateFavorite,
-    MealTemplateIngredient, NutritionGoal,
+    Food, FoodAccess, FoodHiddenByUser, MealEntry, MealIngredient, MealTemplate,
+    MealTemplateFavorite, MealTemplateIngredient, NutritionGoal, RecipeAccess,
+    RecipeHiddenByUser, RecipeIngredientAccess,
 )
 from ..nutrition_schemas import (
     FavoriteUpdate, FoodCreate, FoodUpdate, GoalUpdate, MealCreate,
@@ -21,25 +27,12 @@ router = APIRouter(prefix="/api/nutrition", tags=["nutrition"])
 MACROS = ("calories", "protein_g", "carbs_g", "fat_g")
 
 
-def food_scope(user_id: int, household_id: int | None):
-    """Shared household foods plus the current user's private catalog entries."""
-    clauses = [Food.household_id.is_(None) & (Food.owner_id == user_id)]
-    if household_id is not None:
-        clauses.append(Food.household_id == household_id)
-    return or_(*clauses)
-
-
 def visible_foods_statement(user_id: int, db: Session):
-    household_id = household_id_for_user(db, user_id)
-    return select(Food).where(or_(Food.is_system.is_(True), food_scope(user_id, household_id)))
+    return acl_visible_foods_statement(user_id)
 
 
 def visible_recipes_statement(user_id: int, db: Session):
-    household_id = household_id_for_user(db, user_id)
-    clauses = [MealTemplate.household_id.is_(None) & (MealTemplate.owner_id == user_id)]
-    if household_id is not None:
-        clauses.append(MealTemplate.household_id == household_id)
-    return select(MealTemplate).where(or_(*clauses))
+    return acl_visible_recipes_statement(user_id)
 
 
 def food_dict(food: Food) -> dict:
@@ -82,7 +75,7 @@ def create_food(data: FoodCreate, db: Session = Depends(get_db),
     household_id = household_id_for_user(db, user.id)
     duplicate = db.scalar(select(Food).where(
         Food.is_active.is_(True),
-        food_scope(user.id, household_id),
+        Food.id.in_(select(acl_visible_foods_statement(user.id).subquery().c.id)),
         func.lower(Food.name) == data.name.casefold(),
     ))
     if duplicate is not None:
@@ -90,6 +83,8 @@ def create_food(data: FoodCreate, db: Session = Depends(get_db),
     food = Food(owner_id=user.id, household_id=household_id, name=data.name, brand=data.brand,
                 basis_g=data.basis_g, **{key: getattr(data, key) for key in MACROS})
     db.add(food)
+    db.flush()
+    grant_new_food(db, food, user.id, household_id)
     db.commit()
     db.refresh(food)
     return food_dict(food)
@@ -98,18 +93,14 @@ def create_food(data: FoodCreate, db: Session = Depends(get_db),
 @router.put("/foods/{food_id}")
 def update_food(food_id: int, data: FoodUpdate, db: Session = Depends(get_db),
                 user: User = Depends(current_user)):
-    household_id = household_id_for_user(db, user.id)
-    food = db.scalar(select(Food).where(
-        Food.id == food_id,
-        (Food.household_id == household_id) if household_id is not None else
-        (Food.household_id.is_(None) & (Food.owner_id == user.id)),
-        Food.is_active.is_(True), Food.is_system.is_(False),
+    food = db.scalar(visible_foods_statement(user.id, db).where(
+        Food.id == food_id, Food.is_active.is_(True), Food.is_system.is_(False),
     ))
     if food is None:
         raise HTTPException(404, "Bearbeitbares Lebensmittel nicht gefunden.")
     duplicate = db.scalar(select(Food).where(
         Food.id != food_id, Food.is_active.is_(True),
-        food_scope(user.id, household_id),
+        Food.id.in_(select(acl_visible_foods_statement(user.id).subquery().c.id)),
         func.lower(Food.name) == data.name.casefold(),
     ))
     if duplicate is not None:
@@ -127,11 +118,8 @@ def update_food(food_id: int, data: FoodUpdate, db: Session = Depends(get_db),
 @router.delete("/foods/{food_id}", status_code=204)
 def archive_food(food_id: int, db: Session = Depends(get_db),
                  user: User = Depends(current_user)):
-    household_id = household_id_for_user(db, user.id)
-    food = db.scalar(select(Food).where(
-        Food.id == food_id, Food.is_active.is_(True),
-        food_scope(user.id, household_id),
-        Food.is_system.is_(False),
+    food = db.scalar(visible_foods_statement(user.id, db).where(
+        Food.id == food_id, Food.is_active.is_(True), Food.is_system.is_(False),
     ))
     if food is None:
         raise HTTPException(404, "Bearbeitbares Lebensmittel nicht gefunden.")
@@ -140,11 +128,63 @@ def archive_food(food_id: int, db: Session = Depends(get_db),
     ).limit(1))
     if used_by_recipe is not None:
         raise HTTPException(409, "Dieses Lebensmittel wird in gespeicherten Gerichten verwendet. Bearbeite diese Gerichte zuerst.")
-    # Soft archive preserves meal-entry foreign keys and historical snapshots.
-    food.is_active = False
+    other_grants = db.scalar(select(func.count()).select_from(FoodAccess).where(
+        FoodAccess.food_id == food_id,
+        FoodAccess.user_id != user.id,
+    )) or 0
+    if other_grants:
+        marker = db.scalar(select(FoodHiddenByUser).where(
+            FoodHiddenByUser.food_id == food_id,
+            FoodHiddenByUser.user_id == user.id,
+        ))
+        if marker is None:
+            db.add(FoodHiddenByUser(food_id=food_id, user_id=user.id))
+    else:
+        # Private archive preserves meal-entry foreign keys and historical snapshots.
+        food.is_active = False
     db.commit()
     return Response(status_code=204)
 
+
+
+@router.get("/foods/hidden")
+def list_hidden_foods(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    foods = db.scalars(
+        select(Food)
+        .join(FoodHiddenByUser, FoodHiddenByUser.food_id == Food.id)
+        .join(FoodAccess, FoodAccess.food_id == Food.id)
+        .where(FoodHiddenByUser.user_id == user.id, FoodAccess.user_id == user.id)
+        .order_by(Food.name, Food.id)
+    ).all()
+    return [food_dict(food) for food in foods]
+
+
+@router.post("/foods/{food_id}/hide", status_code=204)
+def hide_food(food_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    food = db.scalar(select(Food).join(
+        FoodAccess, FoodAccess.food_id == Food.id
+    ).where(Food.id == food_id, FoodAccess.user_id == user.id, Food.is_system.is_(False)))
+    if food is None:
+        raise HTTPException(404, "Lebensmittel nicht gefunden.")
+    marker = db.scalar(select(FoodHiddenByUser).where(
+        FoodHiddenByUser.food_id == food_id, FoodHiddenByUser.user_id == user.id
+    ))
+    if marker is None:
+        db.add(FoodHiddenByUser(food_id=food_id, user_id=user.id))
+        db.commit()
+    return Response(status_code=204)
+
+
+@router.delete("/foods/{food_id}/hide", status_code=204)
+def restore_food(food_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    marker = db.scalar(select(FoodHiddenByUser).where(
+        FoodHiddenByUser.food_id == food_id, FoodHiddenByUser.user_id == user.id
+    ))
+    if marker is None:
+        raise HTTPException(404, "Ausgeblendetes Lebensmittel nicht gefunden.")
+    db.delete(marker)
+    db.commit()
+    return Response(status_code=204)
 
 @router.get("/goals")
 def get_goals(db: Session = Depends(get_db), user: User = Depends(current_user)):
@@ -264,7 +304,14 @@ def recipe_dict(template: MealTemplate, db: Session, user_id: int) -> dict:
         MealTemplateIngredient.template_id == template.id
     ).order_by(MealTemplateIngredient.id)).all()
     food_ids = {row.food_id for row in rows}
-    foods = db.scalars(visible_foods_statement(user_id, db).where(Food.id.in_(food_ids))).all()
+    foods = db.scalars(select(Food).where(
+        Food.id.in_(food_ids),
+        select(RecipeIngredientAccess.id).where(
+            RecipeIngredientAccess.recipe_id == template.id,
+            RecipeIngredientAccess.food_id == Food.id,
+            RecipeIngredientAccess.user_id == user_id,
+        ).exists(),
+    )).all()
     by_id = {food.id: food for food in foods}
     ingredients = []
     totals = {key: 0.0 for key in MACROS}
@@ -310,7 +357,14 @@ def list_recipes(q: str = Query(default="", max_length=100), favorites_only: boo
         MealTemplateIngredient.template_id.in_(template_ids)
     ).order_by(MealTemplateIngredient.id)).all()
     food_ids = {row.food_id for row in rows}
-    foods = db.scalars(visible_foods_statement(user.id, db).where(Food.id.in_(food_ids))).all()
+    foods = db.scalars(select(Food).where(
+        Food.id.in_(food_ids),
+        select(RecipeIngredientAccess.id).where(
+            RecipeIngredientAccess.recipe_id.in_(template_ids),
+            RecipeIngredientAccess.food_id == Food.id,
+            RecipeIngredientAccess.user_id == user.id,
+        ).exists(),
+    )).all()
     by_food = {food.id: food for food in foods}
     by_template: dict[int, list[MealTemplateIngredient]] = {}
     for row in rows:
@@ -344,14 +398,75 @@ def list_recipes(q: str = Query(default="", max_length=100), favorites_only: boo
     return result
 
 
-def validate_recipe_ingredients(data: RecipeCreate, db: Session, user_id: int) -> None:
+def validate_recipe_ingredients(
+    data: RecipeCreate,
+    db: Session,
+    user_id: int,
+    recipe_id: int | None = None,
+) -> None:
     ids = {item.food_id for item in data.ingredients}
-    foods = db.scalars(visible_foods_statement(user_id, db).where(
-        Food.id.in_(ids), Food.is_active.is_(True)
+    if not ids:
+        raise HTTPException(400, "Ein Gericht benötigt mindestens eine Zutat.")
+    contextual_access = (
+        select(RecipeIngredientAccess.id).where(
+            RecipeIngredientAccess.recipe_id == recipe_id,
+            RecipeIngredientAccess.food_id == Food.id,
+            RecipeIngredientAccess.user_id == user_id,
+        ).exists()
+        if recipe_id is not None
+        else False
+    )
+    allowed_food_ids = db.scalars(select(Food.id).where(
+        Food.id.in_(ids),
+        Food.is_active.is_(True),
+        or_(
+            Food.id.in_(select(acl_visible_foods_statement(user_id).subquery().c.id)),
+            contextual_access,
+        ),
     )).all()
-    if len(foods) != len(ids):
-        raise HTTPException(404, "Mindestens ein aktives Lebensmittel wurde nicht gefunden.")
+    if set(allowed_food_ids) != ids:
+        raise HTTPException(404, "Mindestens ein aktives Lebensmittel wurde nicht gefunden oder ist für dieses Gericht nicht freigegeben.")
 
+
+
+@router.get("/recipes/hidden")
+def list_hidden_recipes(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    templates = db.scalars(
+        select(MealTemplate)
+        .join(RecipeHiddenByUser, RecipeHiddenByUser.recipe_id == MealTemplate.id)
+        .join(RecipeAccess, RecipeAccess.recipe_id == MealTemplate.id)
+        .where(RecipeHiddenByUser.user_id == user.id, RecipeAccess.user_id == user.id)
+        .order_by(MealTemplate.name, MealTemplate.id)
+    ).all()
+    return [recipe_dict(template, db, user.id) for template in templates]
+
+
+@router.post("/recipes/{recipe_id}/hide", status_code=204)
+def hide_recipe(recipe_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    template = db.scalar(select(MealTemplate).join(
+        RecipeAccess, RecipeAccess.recipe_id == MealTemplate.id
+    ).where(MealTemplate.id == recipe_id, RecipeAccess.user_id == user.id))
+    if template is None:
+        raise HTTPException(404, "Gericht nicht gefunden.")
+    marker = db.scalar(select(RecipeHiddenByUser).where(
+        RecipeHiddenByUser.recipe_id == recipe_id, RecipeHiddenByUser.user_id == user.id
+    ))
+    if marker is None:
+        db.add(RecipeHiddenByUser(recipe_id=recipe_id, user_id=user.id))
+        db.commit()
+    return Response(status_code=204)
+
+
+@router.delete("/recipes/{recipe_id}/hide", status_code=204)
+def restore_recipe(recipe_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    marker = db.scalar(select(RecipeHiddenByUser).where(
+        RecipeHiddenByUser.recipe_id == recipe_id, RecipeHiddenByUser.user_id == user.id
+    ))
+    if marker is None:
+        raise HTTPException(404, "Ausgeblendetes Gericht nicht gefunden.")
+    db.delete(marker)
+    db.commit()
+    return Response(status_code=204)
 
 @router.post("/recipes", status_code=201)
 def create_recipe(data: RecipeCreate, db: Session = Depends(get_db),
@@ -371,6 +486,8 @@ def create_recipe(data: RecipeCreate, db: Session = Depends(get_db),
         db.add(MealTemplateIngredient(
             template_id=template.id, food_id=item.food_id, amount_g=item.amount_g
         ))
+    db.flush()
+    grant_new_recipe(db, template, user.id, household_id)
     db.commit()
     db.refresh(template)
     return recipe_dict(template, db, user.id)
@@ -390,7 +507,7 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
     ))
     if duplicate is not None:
         raise HTTPException(409, "Ein anderes Gericht mit diesem Namen existiert bereits.")
-    validate_recipe_ingredients(data, db, user.id)
+    validate_recipe_ingredients(data, db, user.id, recipe_id=template.id)
     template.name = data.name
     template.meal_type = data.meal_type
     db.execute(delete(MealTemplateIngredient).where(
@@ -400,6 +517,8 @@ def update_recipe(recipe_id: int, data: RecipeUpdate, db: Session = Depends(get_
         db.add(MealTemplateIngredient(
             template_id=template.id, food_id=item.food_id, amount_g=item.amount_g
         ))
+    db.flush()
+    sync_recipe_ingredient_grants(db, template.id)
     db.commit()
     db.refresh(template)
     return recipe_dict(template, db, user.id)
@@ -468,12 +587,24 @@ def delete_recipe(recipe_id: int, db: Session = Depends(get_db),
     ))
     if template is None:
         raise HTTPException(404, "Gericht nicht gefunden.")
-    db.execute(delete(MealTemplateIngredient).where(
-        MealTemplateIngredient.template_id == template.id
-    ))
-    db.execute(delete(MealTemplateFavorite).where(
-        MealTemplateFavorite.template_id == template.id
-    ))
-    db.delete(template)
+    other_grants = db.scalar(select(func.count()).select_from(RecipeAccess).where(
+        RecipeAccess.recipe_id == recipe_id,
+        RecipeAccess.user_id != user.id,
+    )) or 0
+    if other_grants:
+        marker = db.scalar(select(RecipeHiddenByUser).where(
+            RecipeHiddenByUser.recipe_id == recipe_id,
+            RecipeHiddenByUser.user_id == user.id,
+        ))
+        if marker is None:
+            db.add(RecipeHiddenByUser(recipe_id=recipe_id, user_id=user.id))
+    else:
+        db.execute(delete(MealTemplateIngredient).where(
+            MealTemplateIngredient.template_id == template.id
+        ))
+        db.execute(delete(MealTemplateFavorite).where(
+            MealTemplateFavorite.template_id == template.id
+        ))
+        db.delete(template)
     db.commit()
     return Response(status_code=204)
