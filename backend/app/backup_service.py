@@ -40,7 +40,7 @@ def _sha256(path: Path) -> str:
 
 def integrity_check(path: Path) -> None:
     try:
-        with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as connection:
+        with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as connection:
             result = connection.execute("PRAGMA integrity_check").fetchone()
             if not result or result[0] != "ok":
                 raise BackupError(f"SQLite-Integritätsprüfung fehlgeschlagen: {result[0] if result else 'keine Antwort'}")
@@ -66,13 +66,16 @@ def create_backup(
     backup_dir.mkdir(parents=True, exist_ok=True)
     timestamp = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     stamp = timestamp.strftime("%Y%m%dT%H%M%SZ")
+    if kind == "weekly":
+        iso_year, iso_week, _ = timestamp.isocalendar()
+        stamp = f"{iso_year}W{iso_week:02d}-{stamp}"
     destination = backup_dir / f"fittrack-{kind}-{stamp}.db"
     temporary = destination.with_suffix(".db.tmp")
     if destination.exists() or temporary.exists():
         raise BackupError(f"Backup-Ziel existiert bereits: {destination.name}")
 
     try:
-        with sqlite3.connect(f"file:{source}?mode=ro", uri=True) as source_db:
+        with sqlite3.connect(source.as_uri() + "?mode=ro", uri=True) as source_db:
             with sqlite3.connect(temporary) as target_db:
                 source_db.backup(target_db)
                 target_db.execute("PRAGMA journal_mode=DELETE")
@@ -139,7 +142,7 @@ def restore_backup(backup_path: Path, target_path: Path, *, active_database_path
     target_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = target_path.with_suffix(target_path.suffix + ".restore-tmp")
     try:
-        with sqlite3.connect(f"file:{backup_path}?mode=ro", uri=True) as source_db:
+        with sqlite3.connect(backup_path.as_uri() + "?mode=ro", uri=True) as source_db:
             with sqlite3.connect(temporary) as target_db:
                 source_db.backup(target_db)
                 target_db.commit()
