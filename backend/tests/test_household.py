@@ -441,3 +441,62 @@ def test_catalog_permissions_cannot_revoke_creator_or_owner_access(client: TestC
         f"/api/household/catalog-access/foods/{food['id']}/members/{member_household['owner_id']}"
     ).status_code == 409
     assert client.get("/api/nutrition/foods?q=Creator%20Protected").status_code == 200
+
+
+def test_household_audit_records_only_real_permission_transitions(client: TestClient) -> None:
+    register(client, "audit-admin")
+    register(client, "audit-member")
+    login(client, "audit-admin")
+    assert client.post("/api/household", json={"name": "Audit Household"}).status_code == 201
+    food = client.post("/api/nutrition/foods", json={
+        "name": "Permission Audit Food", "basis_g": 100, "calories": 90,
+        "protein_g": 4, "carbs_g": 12, "fat_g": 2,
+    })
+    assert food.status_code == 201
+    invitation = client.post("/api/household/invitations", json={
+        "username": "audit-member",
+    })
+    assert invitation.status_code == 201
+
+    client.post("/api/auth/logout")
+    login(client, "audit-member")
+    assert client.post(
+        f"/api/household/invitations/{invitation.json()['id']}/accept"
+    ).status_code == 200
+
+    client.post("/api/auth/logout")
+    login(client, "audit-admin")
+    food_id = food.json()["id"]
+    member_id = client.get("/api/household").json()["household"]["members"][1]["user_id"]
+
+    # Acceptance grants access automatically; an idempotent grant must not
+    # generate a duplicate audit entry.
+    assert client.put(
+        f"/api/household/catalog-access/foods/{food_id}/members/{member_id}"
+    ).status_code == 204
+    audit_before = client.get("/api/household/audit").json()
+    assert sum(event["action"] == "access_granted" for event in audit_before) == 0
+
+    assert client.delete(
+        f"/api/household/catalog-access/foods/{food_id}/members/{member_id}"
+    ).status_code == 204
+    assert client.put(
+        f"/api/household/catalog-access/foods/{food_id}/members/{member_id}"
+    ).status_code == 204
+
+    events = client.get("/api/household/audit").json()
+    transitions = [
+        event for event in events
+        if event["entity_type"] == "food"
+        and event["entity_id"] == food_id
+        and event["action"] in {"access_granted", "access_revoked"}
+    ]
+    assert [event["action"] for event in transitions] == [
+        "access_granted", "access_revoked",
+    ]
+    assert all(event["actor_username"] == "audit-admin" for event in transitions)
+    assert all(event["changes"]["member_username"] == "audit-member" for event in transitions)
+
+    client.post("/api/auth/logout")
+    login(client, "audit-member")
+    assert client.get("/api/household/audit").status_code == 403
