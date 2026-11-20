@@ -110,7 +110,8 @@ export default function AccountSettings({ username, timezone, onTimezoneChanged,
             {timezoneBusy ? "Wird gespeichert …" : "Zeitzone speichern"}
           </button>
         </form>
-      </section>\n      <section className="panel account-danger-panel">
+      </section>
+      <section className="panel account-danger-panel">
         <div className="account-danger-heading">
           <div className="account-danger-icon"><AlertTriangle size={19}/></div>
           <div><h2>Konto endgültig löschen</h2><p>Diese Aktion kann nicht rückgängig gemacht werden.</p></div>
