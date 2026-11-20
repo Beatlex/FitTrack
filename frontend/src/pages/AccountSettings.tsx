@@ -74,7 +74,33 @@ export default function AccountSettings({ username, timezone, onTimezoneChanged,
         <h2>Kontoverwaltung</h2>
         <p>Angemeldet als <b>{username}</b></p>
       </section>
-      <section className="panel account-timezone-panel">\n        <h2>Zeitzone</h2>\n        <p>Wird für deine Tagesübersicht und die Zuordnung deiner Mahlzeiten verwendet. Zeitstempel bleiben intern in UTC gespeichert.</p>\n        <form className="account-timezone-form" onSubmit={saveTimezone}>\n          <label htmlFor="account-timezone">IANA-Zeitzone</label>\n          <input id="account-timezone" value={timezoneDraft} onChange={event => setTimezoneDraft(event.target.value)} placeholder="Europe/Berlin" maxLength={64} required />\n          <small>Beispiele: Europe/Berlin, Europe/Vienna, America/New_York</small>\n          {timezoneError && <p className="error-message form-message" role="alert">{timezoneError}</p>}\n          {timezoneNotice && <p className="success-message" role="status">{timezoneNotice}</p>}\n          <button className="primary" type="submit" disabled={timezoneBusy || !timezoneDraft.trim() || timezoneDraft.trim() === timezone}>{timezoneBusy ? "Wird gespeichert …" : "Zeitzone speichern"}</button>\n        </form>\n      </section>\n      <section className="panel account-danger-panel">
+      <section className="panel account-timezone-panel">
+        <div className="account-timezone-heading">
+          <div>
+            <h2>Zeitzone</h2>
+            <p>Legt fest, welchem Kalendertag deine Mahlzeiten und Tageswerte zugeordnet werden. Zeitstempel werden weiterhin in UTC gespeichert.</p>
+          </div>
+        </div>
+        <form className="account-timezone-form" onSubmit={saveTimezone}>
+          <label htmlFor="account-timezone">IANA-Zeitzone</label>
+          <input
+            id="account-timezone"
+            value={timezoneDraft}
+            onChange={event => setTimezoneDraft(event.target.value)}
+            placeholder="Europe/Berlin"
+            maxLength={64}
+            autoComplete="off"
+            spellCheck={false}
+            required
+          />
+          <small>Beispiele: Europe/Berlin · Europe/Vienna · America/New_York</small>
+          {timezoneError && <p className="error-message form-message" role="alert">{timezoneError}</p>}
+          {timezoneNotice && <p className="success-message" role="status">{timezoneNotice}</p>}
+          <button className="primary" type="submit" disabled={timezoneBusy || !timezoneDraft.trim() || timezoneDraft.trim() === timezone}>
+            {timezoneBusy ? "Wird gespeichert …" : "Zeitzone speichern"}
+          </button>
+        </form>
+      </section>\n      <section className="panel account-danger-panel">
         <div className="account-danger-heading">
           <div className="account-danger-icon"><AlertTriangle size={19}/></div>
           <div><h2>Konto endgültig löschen</h2><p>Diese Aktion kann nicht rückgängig gemacht werden.</p></div>
