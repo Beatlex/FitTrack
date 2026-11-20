@@ -215,7 +215,7 @@ export default function App() {
         {error && <p className="error" role="alert">{error}</p>}
         {notice && <p className="success-message" role="status">{notice}</p>}
 
-        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Ernährung" ? <Nutrition onDataChanged={refreshDashboard} /> : section === "Haushalt" ? <HouseholdPage /> : section === "Konto" ? <AccountSettings username={user.username} timezone={user.timezone_name ?? "UTC"} onTimezoneChanged={(timezone_name) => setUser(current => current ? { ...current, timezone_name } : current)} onDeleted={handleAccountDeleted} /> : section === "Übersicht" ? (
+        {section === "Körperwerte" ? <BodyMeasurements /> : section === "Ernährung" ? <Nutrition onDataChanged={refreshDashboard} /> : section === "Haushalt" ? <HouseholdPage /> : section === "Konto" ? <AccountSettings username={user.username} timezone={user.timezone_name ?? ""} onTimezoneChanged={(timezone_name) => setUser(current => current ? { ...current, timezone_name } : current)} onDeleted={handleAccountDeleted} /> : section === "Übersicht" ? (
           <>
             <section className="welcome">
               <div><small>SCHÖN, DASS DU DA BIST</small><h2>Bleib dran, {user.username}.</h2><p>Kleine Schritte. Sichtbare Fortschritte.</p></div>
