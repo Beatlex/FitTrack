@@ -99,7 +99,7 @@ def test_timezone_preference_is_validated_and_returned(client: TestClient):
 
     invalid = client.patch(
         "/api/auth/timezone",
-        json={"timezone_name": "CET"},
+        json={"timezone_name": "Mars/Olympus_Mons"},
     )
     assert invalid.status_code == 422
     assert client.get("/api/auth/me").json()["timezone_name"] == "Europe/Berlin"
